@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_topfiles
+# Created:      2026-01-20
+# Purpose:      List the top N largest files recursively from the current directory
+#               with a header timestamp and per-file modification date/time.
+# ============================================
+
+
+########################
+## [Function topfiles] #
+# List the top N largest files recursively from the current directory,
+# with a header timestamp and per-file modification date/time.
+# Usage:
+#   topfiles         # default top 10
+#   topfiles 5       # top 5
+#   topfiles 15      # top 15
+topfiles() {
+  local n="${1:-10}"
+
+  # Validate N
+  if ! [[ "$n" =~ ^[0-9]+$ ]] || [[ "$n" -le 0 ]]; then
+    echo "Usage: topfiles [positive_integer]" >&2
+    return 2
+  fi
+
+  # Header with current timestamp (local)
+  local now
+  now="$(date '+%Y-%m-%d %H:%M:%S %Z')"
+  echo "Top ${n} largest files under: $(pwd)"
+  echo "As of: ${now}"
+  echo "------------------------------------------------------------"
+
+  # Prefer GNU find's -printf (gives size, formatted mtime, and path safely).
+  # Fallback to BSD/macOS stat or GNU stat when -printf isn't available.
+  if find . -type f -printf '%s\t%TY-%Tm-%Td %TH:%TM\t%p\0' >/dev/null 2>&1; then
+    # GNU find path: size (bytes), mtime "YYYY-MM-DD HH:MM", path
+    find . -type f -printf '%s\t%TY-%Tm-%Td %TH:%TM\t%p\0' 2>/dev/null \
+      | sort -z -t $'\t' -k1,1nr \
+      | head -n "$n" \
+      | awk -v RS='\0' -F"\t" '
+          function human(bytes,  u, v) {
+            v=bytes+0; u="B";
+            if (v>=1024){v/=1024;u="K"}
+            if (v>=1024){v/=1024;u="M"}
+            if (v>=1024){v/=1024;u="G"}
+            if (v>=1024){v/=1024;u="T"}
+            if (v>=10) printf "%4.0f%s", v, u; else printf "%4.1f%s", v, u
+          }
+          NF>=3 { printf "%8s  %-16s  %s\n", human($1), $2, $3 }'
+  else
+    # Fallbacks use stat to get size and mtime; null-delimited traversal via find -print0 and xargs -0.
+    if stat -f '%z %N' / >/dev/null 2>&1; then
+      # BSD/macOS stat: -f with %z (size), %Sm (mtime with -t), %N (path)
+      # We tab-separate fields to sort cleanly.
+      find . -type f -print0 2>/dev/null \
+        | xargs -0 -I{} stat -f '%z\t%Sm\t%N' -t '%Y-%m-%d %H:%M' "{}" 2>/dev/null \
+        | LC_ALL=C sort -t $'\t' -k1,1nr \
+        | head -n "$n" \
+        | awk -F"\t" '
+            function human(bytes,  u, v) {
+              v=bytes+0; u="B";
+              if (v>=1024){v/=1024;u="K"}
+              if (v>=1024){v/=1024;u="M"}
+              if (v>=1024){v/=1024;u="G"}
+              if (v>=1024){v/=1024;u="T"}
+              if (v>=10) printf "%4.0f%s", v, u; else printf "%4.1f%s", v, u
+            }
+            NF>=3 { printf "%8s  %-16s  %s\n", human($1), $2, $3 }'
+    elif stat -c '%s %n' / >/dev/null 2>&1; then
+      # GNU stat: %s (size), %y (mtime "YYYY-MM-DD HH:MM:SS.xxxxxx +TZ"), %n (path)
+      # Trim mtime to "YYYY-MM-DD HH:MM" for consistency.
+      find . -type f -print0 2>/dev/null \
+        | xargs -0 -I{} stat -c '%s\t%y\t%n' "{}" 2>/dev/null \
+        | LC_ALL=C sort -t $'\t' -k1,1nr \
+        | head -n "$n" \
+        | awk -F"\t" '
+            function human(bytes,  u, v) {
+              v=bytes+0; u="B";
+              if (v>=1024){v/=1024;u="K"}
+              if (v>=1024){v/=1024;u="M"}
+              if (v>=1024){v/=1024;u="G"}
+              if (v>=1024){v/=1024;u="T"}
+              if (v>=10) printf "%4.0f%s", v, u; else printf "%4.1f%s", v, u
+            }
+            {
+              # mtime example: "2026-01-16 11:22:30.123456789 -0500"
+              m=$2 " " $3;                        # join first two time tokens
+              sub(/\.[0-9]+$/, "", m);            # drop fractional seconds
+              gsub(/:[0-9][0-9]$/, "", m);        # keep YYYY-MM-DD HH:MM (optional)
+              printf "%8s  %-16s  %s\n", human($1), m, $4
+            }'
+    else
+      echo "topfiles: neither GNU find -printf nor usable stat found." >&2
+      return 1
+    fi
+  fi
+}      ##### FUNCTION END : topfiles
+
+
