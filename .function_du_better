@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_du_better - alias du.
+# Created:      2026-01-08
+# Purpose:      Show human-readable, per-item disk usage at depth 1,
+#               sorted by size, with a yellow TOTAL line at the end.
+# ============================================
+
+
+########################
+##  [Function du_better - du.] #
+alias du.="du_better"
+# Show human-readable, per-item disk usage at depth 1, sorted by size,
+# with a yellow TOTAL line at the end.
+du_better() {
+  # Use current directory if none provided
+  local dir="${1:-.}"
+
+  # Verify directory exists
+  if [[ ! -d "$dir" ]]; then
+    printf 'Error: "%s" is not a directory.\n' "$dir" >&2
+    return 1
+  fi
+
+  # Colors (prefer tput, fallback to ANSI)
+  local yellow reset
+  yellow="$(tput setaf 3 2>/dev/null || printf '\033[33m')"
+  reset="$(tput sgr0 2>/dev/null || printf '\033[0m')"
+
+  # Main listing: depth 1, human-readable, one filesystem, sorted by size desc,
+  # ignore "denied" noise, align nicely.
+  #
+  # Notes:
+  # - `-a` shows both files and directories
+  # - `-h` makes sizes human-readable (K/M/G/T)
+  # - `-x` keeps within one filesystem
+  # - `--max-depth=1` limits to immediate children
+  # - `sort -h -r -k1,1` sorts by the human-readable size column
+  du -ahx --max-depth=1 -- "$dir" 2>&1 \
+    | sort -h -r -k1,1 \
+    | grep -v "denied" \
+    | awk '
+        NR==1 && $2=="." { next } # if the first line is the dir itself from some du variants, skip it
+        {
+          size=$1
+          $1=""
+          sub(/^[[:space:]]+/, "", $0)
+          # Align sizes to 10 chars for neat columns
+          printf "%10s  %s\n", size, $0
+        }
+      '
+
+  # Compute and print TOTAL in yellow
+  # - Use du -shx to summarize the directory only
+  local total
+  total="$(du -shx -- "$dir" 2>/dev/null | awk '{print $1}')"
+  printf "%s%10s  %s%s\n" "$yellow" "${total:-0}" "TOTAL" "$reset"
+}      ##### FUNCTION END : du_better
+
+
