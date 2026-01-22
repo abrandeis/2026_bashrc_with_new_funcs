@@ -1,2 +1,4 @@
 *.js linguist-language=Python
 *.bashrc-new linguist-language=Shell
+*.function_* linguist-language=Bash
+
