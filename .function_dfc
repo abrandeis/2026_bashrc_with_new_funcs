@@ -1,0 +1,114 @@
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_dfc
+# Created:      2026-01-08
+# Purpose:      to show a better human-readable disk usage with colors
+# ============================================
+
+########################
+## [Function dfc] #
+
+# Show human-readable disk usage with colors:
+# - Header in cyan
+# - Any Use% > threshold in red (default 75)
+# - Blank line, then a TOTAL line in yellow
+# Usage:
+#   dfc          # threshold = 75
+#   dfc 85       # threshold = 85
+dfc() {
+  local threshold="${1:-75}"
+
+  # ANSI colors
+  local CYAN="\033[36m"
+  local RED="\033[31m"
+  local YELLOW="\033[33m"
+  local RESET="\033[0m"
+
+  # Prefer POSIX columns to avoid wrapping (GNU); fallback for BSD/macOS
+  local df_h_cmd="df -hP"
+  $df_h_cmd >/dev/null 2>&1 || df_h_cmd="df -h"
+
+  # 1) Main table with coloring
+  eval "$df_h_cmd" | awk -v th="$threshold" -v cyan="$CYAN" -v red="$RED" -v reset="$RESET" '
+    NR == 1 { print cyan $0 reset; next }
+    {
+      # Find the Use% field robustly (handles different layouts)
+      perc = -1
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /%$/) {
+          tmp = $i; gsub("%","",tmp)
+          if (tmp ~ /^[0-9]+$/) { perc = tmp + 0; break }
+        }
+      }
+      if (perc > th) print red $0 reset
+      else print $0
+    }
+  '
+
+  # 2) Blank line
+  printf "\n"
+
+  # 3) Total line in yellow
+  # Try GNU df --total; if unsupported (BSD/macOS), compute totals portably.
+  if df -hP --total >/dev/null 2>&1; then
+    # GNU path: print only the TOTAL line in yellow
+    df -hP --total | awk -v yellow="$YELLOW" -v reset="$RESET" '
+      NR==1 { next }                                 # skip header
+      / total$/ || $1=="total" || $1=="Total" {      # match total row
+        print yellow $0 reset
+        found=1
+      }
+      END { if (!found) { } }
+    '
+  else
+    # Portable path: compute totals in KiB, then pretty-print in human units.
+    # Use -kP for 1K-blocks with POSIX layout where possible.
+    local df_k_cmd="df -kP"
+    $df_k_cmd >/dev/null 2>&1 || df_k_cmd="df -k"
+
+    eval "$df_k_cmd" | awk -v yellow="$YELLOW" -v reset="$RESET" '
+      BEGIN {
+        total=0; used=0; avail=0
+      }
+      NR==1 { header=$0; next }
+      {
+        # POSIX df -kP columns: Filesystem 1024-blocks Used Available Capacity Mounted on
+        # Try to detect numeric fields dynamically:
+        # Gather numeric fields in order of appearance
+        nums=0
+        for (i=1;i<=NF;i++) {
+          if ($i ~ /^[0-9]+$/) {
+            vals[++nums]=$i+0
+          }
+        }
+        if (nums >= 3) {
+          total += vals[1]
+          used  += vals[2]
+          avail += vals[3]
+        }
+      }
+      # Humanize KiB values
+      function human1k(k,  u) {
+        u="K"; val=k
+        if (val>=1024) { val/=1024; u="M" }
+        if (val>=1024) { val/=1024; u="G" }
+        if (val>=1024) { val/=1024; u="T" }
+        # Show one decimal for non-integers
+        if (val>=10) printf "%.0f%s", val, u
+        else printf "%.1f%s", val, u
+      }
+      END {
+        cap = (total>0 ? int((used*100)/total+0.5) : 0)
+        # Reconstruct a line similar to df -h output:
+        # Filesystem      Size  Used Avail Use% Mounted on
+        # We print label "total" and a synthetic mountpoint "-"
+        printf yellow "%-20s %6s %6s %6s %3d%% %s\n" reset, \
+          "total", human1k(total), human1k(used), human1k(avail), cap, "-"
+      }
+    '
+  fi
+}      ##### FUNCTION END : dfc
+``
+
