@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# ============================================
+# Filename:     colors
+# Description:  colors source for scripts and functions
+# Created on:   2026-01-20
+# Purpose:      to allow a user to customize scripts and fuctions using colors
+# ============================================
+
+
+
+##### ── COLORS SOURCE FOR SCRIPTS) ───────────────────────────────────────
+
+
+########################
+##   FOR COLORS SEEN ON ls COMMANDS
+if [[ $(echo $LS_COLORS | wc -l) -lt 1 ]]; then
+  export LS_COLORS="${LS_COLORS}:ow=1;0;42"
+fi
+
+########################
+##   FOR SOME COLOR USE IN OUTPUT  ##
+export C_NC='\e[0m'                      # No Color / Color reset
+export C_RD='\e[1;31m'                   # Red
+export C_YW='\e[1;33m'                   # Yellow / bold text
+export C_CY='\e[1;36m'                   # Cyan
+export C_GN='\e[38;5;46m'                # Neon Green
+
+
+####################
+##    ADDITIONAL COLORS
+export C_MA='\[\e[1;35m\]'              ## Magenta Bold
+export C_RDW='\[\e[0;101m\]'            ## Red Hi Intense BG - White FG
+export C_WHT='\[\e[38;5;15m\]'          ## White
+export C_CY2='\[\e[38;5;51m\]'          ## Cyan
+export C_PRP='\[\e[38;5;147m\]'         ## Purple          [GreenYellow] - Hostname
+export C_RD2='\[\e[38;5;196m\]'         ## Red FG - Black BG
+export C_YW2='\[\e[38;1;33m\]'          ## Neon Yellow
+export C_BLK='\[\e[38;5;240m\]'         ## Black
+#PSC_RD="$PSC_NC\[\e[5;37;41m\]"         ## Red BG - White FG
+
+
