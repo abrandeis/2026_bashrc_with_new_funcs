@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_lsc
+# Created:      2026-01-08
+# Purpose:      List files with ls -latr and show counts of dirs/files at the bottom in yellow.
+# ============================================
+
+
+########################
+## [Function ls_with_counts - lsc] #
+alias lsc="ls_with_counts"
+# List files with ls -latr and show counts of dirs/files at the bottom in yellow.
+ls_with_counts() {
+  # Use current directory if none provided
+  local dir="${1:-.}"
+
+  # Verify directory exists
+  if [[ ! -d "$dir" ]]; then
+    printf 'Error: "%s" is not a directory.\n' "$dir" >&2
+    return 1
+  fi
+
+  # Colors (prefer tput; fallback to ANSI)
+  local yellow reset
+  yellow="$(tput setaf 3 2>/dev/null || printf '\033[33m')"
+  reset="$(tput sgr0 2>/dev/null || printf '\033[0m')"
+
+  # 1) Do the listing (includes hidden files, like your -a flag requests)
+  #    -l: long format
+  #    -a: include entries starting with .
+  #    -t: sort by modification time
+  #    -r: reverse order (oldest last)
+  ls -latr -- "$dir"
+
+  # 2) Count immediate entries (non-recursive) in the directory:
+  #    - Directories: -type d (everything at depth 1; . and .. are not included due to -mindepth 1)
+  #    - Files:       -type f (regular files only; symlinks not counted as files)
+  #    Counts include hidden items (matching ls -a behavior).
+  local dir_count file_count total
+  dir_count="$(find "$dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | awk '{print $1}')"
+  file_count="$(find "$dir" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l | awk '{print $1}')"
+  total=$(( dir_count + file_count ))
+
+  # 3) Print yellow summary lines
+  printf "\n%sdirs = %s%s\n"   "$yellow" "$dir_count" "$reset"
+  printf "%sfiles = %s%s\n"    "$yellow" "$file_count" "$reset"
+  printf "%stotal = %s%s\n"    "$yellow" "$total" "$reset"
+}      ##### FUNCTION END : ls_with_counts
+
