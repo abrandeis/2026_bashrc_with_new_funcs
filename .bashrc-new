@@ -1,0 +1,155 @@
+# .bashrc
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .bashrc_lucera
+# Created on:   2026-01-08
+# Description:  Custom .bashrc 
+# Purpose:      Custom prompt with date/time + server line,
+#               colored prompt, and useful aliases
+# ============================================
+
+# ----- Source Files -----
+export BASHRC_HOME="$HOME/.myBash"
+
+#export HISTFILE="${BASHRC_HOME}/.bash_history"
+
+# Turn history on explicitly
+#set -o history
+
+##### ── 1) Shell options (set early) ───────────────────────────────────────
+shopt -s histappend              # When session close, history will append to .bash_history file rather than overwriting
+shopt -s histverify              # Verify history before re-running a command via !<last_command>
+
+####################
+#|  BASH OPTIONS
+# (for example, cd /vr/lgo/apaache would find /var/log/apache)
+shopt -s cdspell                 # Correct cd typos.  When changing directory small typos can be ignored by bash
+shopt -s checkwinsize            # Fix annoying line wrapping issues after resize terminal window.
+shopt -s globstar                # ** recursive globs
+
+# cmdhist If set, bash attempts to save all lines of a multiple-line command in the same history entry.
+#        Allow easy re-editing of multi-line commands.
+shopt -ps cmdhist
+
+# lithist If set, and the cmdhist option is enabled, multi-line commands are saved to the history with embedded
+#        newlines rather than using semicolon separators where possible.
+shopt -pu lithist
+
+
+##### ── 2)Better history behavior ───────────────────────────────────────
+HISTSIZE=5000
+HISTFILESIZE=100000
+
+HISTTIMEFORMAT="%F %T "
+
+HISTCONTROL=ignorespace:ignoredups
+##### ── HISTIGNORE  ───────────────────────────────────────
+HISTIG_COMMON='ll:pwd:clear:cls:exit:logout'
+HISTIG_HIST='history*:hist*:hcg*'
+HISTIG_BGC='mybashrc*'
+HISTIG_FUNCS='histdel*:histdel_last*'
+HISTIGNORE="cd :${HISTIG_COMMON}:${HISTIG_BGC}:${HISTIG_HIST}:${HISTIG_FUNCS}"
+#HISTIGNORE='ll:mybashrc*:bashBGC*:history:hist*:hcg*:pwd:clear:cls:cd:exit:logout:histdel*:histdel_last*:newsource*:*.bashrc_lucera*:ag*:cg*'
+
+
+##### ── 3)SOURCE FILES ───────────────────────────────────────
+
+if [ -f ${BASHRC_HOME}/.bashrc_alias ]; then
+    source ${BASHRC_HOME}/.bashrc_alias
+fi
+
+if [ -f ${BASHRC_HOME}/.bashrc_functions ]; then
+    source ${BASHRC_HOME}/.bashrc_functions
+fi
+
+if [ -f ${BASHRC_HOME}/colors ]; then
+    source ${BASHRC_HOME}/colors
+fi
+
+
+#####
+## Color Variables
+C_NC="\e[0m"
+C_RD="\e[31m"
+C_GN="\e[32m"
+C_YW="\e[33m"
+
+
+####################
+##   PROMPT [PS1] VARIABLES
+##    COLORS IN USE FOR PS
+PSC_NC='\[\e[0m\]'                                  ### Color Reset - No Color
+PSC_RD='\[\e[0;41m\]'                               ### Red BG - White FG
+PSC_GN='\[\e[0;32m\]'                               ### Green with black text
+PSC_CY='\[\e[0;96m\]'                               ### Cyan 2
+PSC_MA='\[\e[1;35m\]'                               ### Magenta Bold
+PSC_RDW='\[\e[0;101m\]'                             ### Red Hi Intense BG - White FG
+PSC_YW='\[\e[38;5;220m\]'                           ### Yellow
+PSC_WHT='\[\e[38;5;15m\]'                           ### White
+PSC_GN2='\[\e[38;5;46m\]'                           ### Neon Green
+PSC_CY2='\[\e[38;5;51m\]'                           ### Cyan
+PSC_PRP='\[\e[38;5;147m\]'                          ### Purple          [GreenYellow] - Hostname
+PSC_RD2='\[\e[38;5;196m\]'                          ### Red FG - Black BG
+PSC_YW2='\[\e[38;1;33m\]'                           ### Neon Yellow
+PSC_BLK='\[\e[38;5;240m\]'                          ### Black
+#PSC_RD="$PSC_NC\[\e[5;37;41m\]"                    ### Red BG - White FG
+
+export FullHost=$(hostname -f)
+
+##    DATE/TIME BOX [(INSTANCES}] PROD ALERT
+export PS_DT="$PSC_CY2\d \@$PSC_NC"                 ### Date/Time         - Cyan
+export PSDTHOST="$PSC_YW${FullHost}$PSC_NC"         ### Hostname          - Yellow
+#export PSDTHOST="$PSC_YW\H$PSC_NC"                  ### Hostname          - Yellow
+export PSUSR="$PSC_MA\u$PSC_NC"                     ### User              - Magenta
+export PS_AT="$PSC_GN2@$PSC_NC"                     ### @                 - Neon Green
+export PSHOST="$PSC_YW\H:$PSC_NC"                   ### Hostname          - Yellow
+export PSPWD="$PSC_WHT\w$PSC_NC"                    ### PWD               - White - with color reset
+export PSPROMPT="$PSC_GN2] $PSC_NC"                 ### ]                 - Neon Green
+
+
+####################
+#|  SET PROMPT [PS1] [PS2]
+export PS1="\n${PS_DT} ${PSDTHOST}\n\
+${PSUSR}${PS_AT}${PSHOST}${PSPWD}${PSPROMPT}"
+
+export PS2="${PSC_GN2}continue-> ${PSC_NC}"
+
+SPACER="    "
+
+##  PROMPT_COMMAND to set the title bar of the putty window                                ::: #
+##  history -a  # append history lines from this session to the history file.              ::: #
+PROMPT_COMMAND='if [[ ! ( $(date +"%T") < "$prodStartTime" || $(date +"%T") > "$prodEndTime" ) ]]; then MESSAGE="  "; else MESSAGE=" "; fi; echo -ne " \e]0; ${USER}@${HOSTNAME}: ${PWD} ${SPACER}${SPACER}|${SPACER}$PC_HOST${SPACER}|${SPACER}YOU ARE $USER${SPACER}|${SPACER}$(echo ${MESSAGE})${SPACER}| \007" && history -a'
+
+
+####################
+##   For colorized MAN pages
+export LESSBINFMT="*k<%02X>"             # show ^A [control] characters in different color
+export LESS_TERMCAP_mb=$'\e[01;30m'      # begin blinking                 [grey-black bold]
+export LESS_TERMCAP_md=$'\e[38;05;38m'   # begin bold                     [Cyan on black]
+export LESS_TERMCAP_se=$'\e[0m'          # end standout-mode              [reset]
+export LESS_TERMCAP_so=$'\e[07;107;34m'  # begin standout-mode - info box [white on blue]
+export LESS_TERMCAP_ue=$'\e[0m'          # end underline                  [reset]
+export LESS_TERMCAP_us=$'\e[01;04;32m'   # begin underline                [bold underlined Green]
+export LESS_TERMCAP_me=$'\e[0m'          # end mode                       [reset]
+
+
+########################
+##  COMPLETE
+complete -c type which man whatis locate ## (-c) Add auto complete for specific commands
+complete -d -f ll ls lcd goal            ## (-d / -f) Add auto complete for directories and files
+
+#complete -C '/usr/local/bin/aws_completer' aws
+
+## better ssh hostname autocomplete
+complete -o default -o nospace -W "$( { cat ~/.ssh/known_hosts | cut -f 1 -d ' ' | sed -e s/,.*//g | uniq ;     \
+                grep '^Host' ~/.ssh/config ~/.ssh/config.d/* 2>/dev/null | grep -v '[?*]' | cut -d ' ' -f 2-; } \
+                | sed -e 's/.mgmt.prd.lucera.com//' -e 's/.prd.lucera.com//'                                     \
+                | sort -u)" host ping rsync scp sftp ssh
+
+
+# Completion (if available)
+if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
+  . /etc/bash_completion
+fi
+
