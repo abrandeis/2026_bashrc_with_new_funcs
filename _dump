@@ -1,0 +1,1921 @@
+~/ADAM/cust-bash-shell] ll .f*
+-rwxr-xr-x 1 abrandeis Domain Users 2025 Mar  2 10:28 .function_cpy*
+-rw-r--r-- 1 abrandeis Domain Users 4944 Feb 11 14:37 .function_dfc
+-rwxr-xr-x 1 abrandeis Domain Users 1990 Feb 11 14:37 .function_du_better*
+-rwxr-xr-x 1 abrandeis Domain Users  929 Feb 11 14:38 .function_lcd*
+-rwxr-xr-x 1 abrandeis Domain Users 1948 Feb 11 14:38 .function_lsc*
+-rwxr-xr-x 1 abrandeis Domain Users 5678 Feb 11 14:38 .function_topfiles*
+-rwxr-xr-x 1 abrandeis Domain Users 2450 Feb 11 14:54 .function_which*
+
+~/ADAM/cust-bash-shell] cat .f*
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_cpy
+# Created:      2026-01-08
+# Purpose:      back up filenames with date for any file or directory
+# ============================================
+
+##### ── Function cpy  ───────────────────────────────────────
+##  - backs up files using filename.yyyymmdd.bak on any file or directory
+##  - shortcut to cp -pr for example: cp -pr .file{,.20190505.bak}
+cpy () {
+    if [[ -z $1 ]]; then
+        echo -e " "
+        echo -e "${C_CY}cpy${C_NC}"
+        echo -e "   ${C_YW}Use to make a .bak file with date on any file or directory${C_NC}"
+        echo -e " "
+        echo -e "    ${C_GN}Usage:${C_NC}"
+        echo -e "    ${C_NC}=========${C_NC}"
+        echo -e "    ${C_CY}cpy${C_NC} MyDirectory"
+        echo -e "    ${C_CY}cpy${C_NC} myfile"
+        return 1
+    fi
+
+    local src="$1"
+
+    if [[ -f "$src" || -d "$src" ]]; then
+        # Build the base backup name with today's date
+        local today
+        today="$(date '+%Y%m%d')"
+        local base_bak="${src}.${today}.bak"
+        local dest="$base_bak"
+
+        # If it exists, add _2, _3, ... until a free name is found
+        if [[ -e "$dest" ]]; then
+            local n=2
+            while :; do
+                dest="${src}.${today}_${n}.bak"
+                [[ ! -e "$dest" ]] && break
+                ((n++))
+            done
+        fi
+
+        # Perform the copy (preserve attrs, recursive if dir)
+        cp -pr -- "$src" "$dest"
+
+        # Show the source and the most recent backups
+        # Using -- to guard against filenames starting with dashes
+        echo
+        ls --color=auto -goaltr --color=always -- "$src" "${src}".*.bak 2>/dev/null | \
+            grep --color=auto --color=always -E "$(printf '%q' "$src")" | tail -3
+    else
+        echo -e "    ${C_RD}\"$src\"${C_YW} file or directory not found!${C_NC}"
+        return 2
+    fi
+}
+
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_dfc
+# Created:      2026-01-08
+# Purpose:      to show a better human-readable disk usage with colors
+# ============================================
+
+########################
+## [Function dfc] #
+
+# Show human-readable disk usage with colors:
+# - Header in cyan
+# - Any Use% > threshold in red (default 75)
+# - Blank line, then a TOTAL line in yellow
+# Usage:
+#   dfc            # threshold = 75
+#   dfc 85         # threshold = 85
+#   dfc -h | --help
+
+dfc() {
+  # --- ANSI colors (used in output and help) ---
+  local CYAN=$'\033[1;36m'
+  local RED=$'\033[1;36m'
+#  CYAN='\e[1;36m'
+#  RED='\e[1;36m'
+  local YELLOW=$'\033[1;33m'
+  local RESET=$'\033[0m'
+
+  # --- Help / Usage text (with colors) ---
+  usage() {
+    cat <<EOF
+${CYAN}dfc${RESET}
+
+${YELLOW}Usage:${RESET}
+  ${CYAN}dfc${RESET} [THRESHOLD]
+  ${CYAN}dfc${RESET} -h | --help
+
+${YELLOW}Description:${RESET}
+  Show human-readable disk usage with colors:
+    - Header in cyan
+    - Any Use% > THRESHOLD in red (default 75)
+    - Blank line, then a TOTAL line in yellow
+
+${YELLOW}Arguments:${RESET}
+  THRESHOLD        Integer 0–100. Example: ${CYAN}dfc${RESET} 85
+
+${YELLOW}Options:${RESET}
+  -h, --help       Show this help and return
+
+${YELLOW}Examples:${RESET}
+  ${CYAN}dfc${RESET}              # uses default threshold 75
+  ${CYAN}dfc${RESET} 90           # flags mounts >90% in red
+EOF
+  }
+
+  # --- Parse options (-h/--help); allow optional single positional threshold ---
+  local OPTIND=1 opt
+  while getopts ":h" opt; do
+    case "$opt" in
+      h) usage; return 0 ;;
+      \?) printf "%sdfc:%s Unknown option -%s\n" "$RED" "$RESET" "$OPTARG" >&2; usage >&2; return 2 ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  # Support --help (getopts doesn't handle long options)
+  if [[ "${1:-}" == "--help" ]]; then
+    usage
+    return 0
+  fi
+
+  # --- Determine threshold (default 75); validate 0–100 integer ---
+  local threshold="${1:-75}"
+  if [[ $# -gt 1 ]]; then
+    printf "%sdfc:%s Too many arguments.\n" "$RED" "$RESET" >&2
+    usage >&2
+    return 2
+  fi
+  if ! [[ "$threshold" =~ ^[0-9]+$ ]] || (( threshold < 0 || threshold > 100 )); then
+    printf "%sdfc:%s THRESHOLD must be an integer between 0 and 100 (got: '%s').\n" "$RED" "$RESET" "$threshold" >&2
+    usage >&2
+    return 2
+  fi
+
+  # --- Prefer POSIX columns to avoid wrapping (GNU); fallback for BSD/macOS ---
+  local df_h_cmd="df -hP"
+  if ! eval "$df_h_cmd" >/dev/null 2>&1; then
+    df_h_cmd="df -h"
+  fi
+
+  # 1) Main table with coloring
+  eval "$df_h_cmd" | awk -v th="$threshold" -v cyan="$CYAN" -v red="$RED" -v reset="$RESET" '
+    NR == 1 { print cyan $0 reset; next }
+    {
+      # Find the Use% field robustly (handles different layouts)
+      perc = -1
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /%$/) {
+          tmp = $i; gsub("%","",tmp)
+          if (tmp ~ /^[0-9]+$/) { perc = tmp + 0; break }
+        }
+      }
+      if (perc > th) print red $0 reset
+      else print $0
+    }
+  '
+
+  # 2) Blank line
+  printf "\n"
+
+  # 3) Total line in yellow
+  # Try GNU df --total; if unsupported (BSD/macOS), compute totals portably.
+  if df -hP --total >/dev/null 2>&1; then
+    # GNU path: print only the TOTAL line in yellow
+    df -hP --total | awk -v yellow="$YELLOW" -v reset="$RESET" '
+      NR==1 { next }                                 # skip header
+      / total$/ || $1=="total" || $1=="Total" {      # match total row
+        print yellow $0 reset
+        found=1
+      }
+      END { if (!found) { } }
+    '
+  else
+    # Portable path: compute totals in KiB, then pretty-print in human units.
+    local df_k_cmd="df -kP"
+    if ! eval "$df_k_cmd" >/dev/null 2>&1; then
+      df_k_cmd="df -k"
+    fi
+
+    eval "$df_k_cmd" | awk -v yellow="$YELLOW" -v reset="$RESET" '
+      BEGIN {
+        total=0; used=0; avail=0
+      }
+      NR==1 { next }
+      {
+        # POSIX df -kP columns: Filesystem 1024-blocks Used Available Capacity Mounted on
+        # Detect numeric fields dynamically:
+        nums=0
+        for (i=1;i<=NF;i++) if ($i ~ /^[0-9]+$/) vals[++nums]=$i+0
+        if (nums >= 3) {
+          total += vals[1]
+          used  += vals[2]
+          avail += vals[3]
+        }
+      }
+      # Humanize KiB values
+      function human1k(k,  u, val) {
+        u="K"; val=k+0
+        if (val>=1024) { val/=1024; u="M" }
+        if (val>=1024) { val/=1024; u="G" }
+        if (val>=1024) { val/=1024; u="T" }
+        if (val>=10) printf "%.0f%s", val, u
+        else printf "%.1f%s", val, u
+      }
+      END {
+        cap = (total>0 ? int((used*100)/total+0.5) : 0)
+        # Reconstruct a line similar to df -h output:
+        # Filesystem      Size  Used Avail Use% Mounted on
+        printf yellow "%-20s %6s %6s %6s %3d%% %s\n" reset, \
+          "total", human1k(total), human1k(used), human1k(avail), cap, "-"
+      }
+    '
+  fi
+}      ##### FUNCTION END : dfc
+
+
+
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_du_better - alias du.
+# Created:      2026-01-08
+# Purpose:      Show human-readable, per-item disk usage at depth 1,
+#               sorted by size, with a yellow TOTAL line at the end.
+# ============================================
+
+
+########################
+##  [Function du_better - du.] #
+alias du.="du_better"
+# Show human-readable, per-item disk usage at depth 1, sorted by size,
+# with a yellow TOTAL line at the end.
+du_better() {
+  # Use current directory if none provided
+  local dir="${1:-.}"
+
+  # Verify directory exists
+  if [[ ! -d "$dir" ]]; then
+    printf 'Error: "%s" is not a directory.\n' "$dir" >&2
+    return 1
+  fi
+
+  # Colors (prefer tput, fallback to ANSI)
+  local yellow reset
+  yellow="$(tput setaf 3 2>/dev/null || printf '\033[33m')"
+  reset="$(tput sgr0 2>/dev/null || printf '\033[0m')"
+
+  # Main listing: depth 1, human-readable, one filesystem, sorted by size desc,
+  # ignore "denied" noise, align nicely.
+  #
+  # Notes:
+  # - `-a` shows both files and directories
+  # - `-h` makes sizes human-readable (K/M/G/T)
+  # - `-x` keeps within one filesystem
+  # - `--max-depth=1` limits to immediate children
+  # - `sort -h -r -k1,1` sorts by the human-readable size column
+  du -ahx --max-depth=1 -- "$dir" 2>&1 \
+    | sort -h -r -k1,1 \
+    | grep -v "denied" \
+    | awk '
+        NR==1 && $2=="." { next } # if the first line is the dir itself from some du variants, skip it
+        {
+          size=$1
+          $1=""
+          sub(/^[[:space:]]+/, "", $0)
+          # Align sizes to 10 chars for neat columns
+          printf "%10s  %s\n", size, $0
+        }
+      '
+
+  # Compute and print TOTAL in yellow
+  # - Use du -shx to summarize the directory only
+  local total
+  total="$(du -shx -- "$dir" 2>/dev/null | awk '{print $1}')"
+  printf "%s%10s  %s%s\n" "$yellow" "${total:-0}" "TOTAL" "$reset"
+}      ##### FUNCTION END : du_better
+
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_lcd
+# Created:      2026-01-08
+# Purpose:      enter a directory and list contents
+# ============================================
+
+
+########################
+## [Function lcd] #
+##  - ENTER AND LIST DIRECTORY
+lcd() {
+  if [[ $1 == '-h' ]]; then
+    echo -e " "
+    echo -e " ${C_YW}This is the help info for the function:${C_NC} ${C_CY}lcd ${C_NC}"
+    echo -e " ${C_CY}lcd ${C_NC}is a function that allows a user to 'cd' into a directory and 'list' the contents in a single command.${C_NC}"
+    echo -e " "
+    echo -e " ${C_YW}For example: ${C_NC}"
+    echo -e "      ${C_CY}lcd .. ${C_NC}"
+    echo -e "      ${C_CY}lcd /tmp${C_NC}"
+  elif [[ -z $1 ]]; then
+    dir -latrh --color=always;
+  else
+    builtin cd -- "$@" && { [ "$PS1" = "" ] || dir -latrh --color=always; };
+  fi
+}      ##### FUNCTION END : lcd
+
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_lsc
+# Created:      2026-01-08
+# Purpose:      List files with ls -latr and show counts of dirs/files at the bottom in yellow.
+# ============================================
+
+
+########################
+## [Function ls_with_counts - lsc] #
+alias lsc="ls_with_counts"
+# List files with ls -latr and show counts of dirs/files at the bottom in yellow.
+ls_with_counts() {
+  # Use current directory if none provided
+  local dir="${1:-.}"
+
+  # Verify directory exists
+  if [[ ! -d "$dir" ]]; then
+    printf 'Error: "%s" is not a directory.\n' "$dir" >&2
+    return 1
+  fi
+
+  # Colors (prefer tput; fallback to ANSI)
+  local yellow reset
+  yellow="$(tput setaf 3 2>/dev/null || printf '\033[33m')"
+  reset="$(tput sgr0 2>/dev/null || printf '\033[0m')"
+
+  # 1) Do the listing (includes hidden files, like your -a flag requests)
+  #    -l: long format
+  #    -a: include entries starting with .
+  #    -t: sort by modification time
+  #    -r: reverse order (oldest last)
+  ls -latr -- "$dir"
+
+  # 2) Count immediate entries (non-recursive) in the directory:
+  #    - Directories: -type d (everything at depth 1; . and .. are not included due to -mindepth 1)
+  #    - Files:       -type f (regular files only; symlinks not counted as files)
+  #    Counts include hidden items (matching ls -a behavior).
+  local dir_count file_count total
+  dir_count="$(find "$dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | awk '{print $1}')"
+  file_count="$(find "$dir" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l | awk '{print $1}')"
+  total=$(( dir_count + file_count ))
+
+  # 3) Print yellow summary lines
+  printf "\n%sdirs = %s%s\n"   "$yellow" "$dir_count" "$reset"
+  printf "%sfiles = %s%s\n"    "$yellow" "$file_count" "$reset"
+  printf "%stotal = %s%s\n"    "$yellow" "$total" "$reset"
+}      ##### FUNCTION END : ls_with_counts
+
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_topfiles
+# Created:      2026-01-20
+# Purpose:      List the top N largest files recursively from the current directory
+#               with a header timestamp and per-file modification date/time.
+# ============================================
+
+
+########################
+## [Function topfiles] #
+# List the top N largest files recursively from the current directory,
+# with a header timestamp and per-file modification date/time.
+# Usage:
+#   topfiles         # default top 10
+#   topfiles 5       # top 5
+#   topfiles 15      # top 15
+
+topfiles() {
+  local n="${1:-10}"
+  local color_mode="auto"  # auto|always|never
+  local arg
+
+  # Parse optional --color/--no-color (keep it simple; first non-flag is N)
+  while [[ "$1" == --* ]]; do
+    arg="$1"; shift
+    case "$arg" in
+      --no-color)     color_mode="never" ;;
+      --color=always) color_mode="always" ;;
+      --color=auto)   color_mode="auto" ;;
+      --color=never)  color_mode="never" ;;
+      *) echo "Unknown option: $arg" >&2; return 2 ;;
+    esac
+  done
+
+  # If next positional exists, it's N
+  if [[ -n "${1:-}" ]]; then
+    n="$1"
+  fi
+
+  # Validate N
+  if ! [[ "$n" =~ ^[0-9]+$ ]] || [[ "$n" -le 0 ]]; then
+    echo "Usage: topfiles [N] [--color=auto|always|never|--no-color]" >&2
+    return 2
+  fi
+
+  # Decide whether to colorize
+  local use_color=0
+  if [[ "$color_mode" == "always" ]]; then
+    use_color=1
+  elif [[ "$color_mode" == "never" ]]; then
+    use_color=0
+  else
+    # auto: only when stdout is a TTY and NO_COLOR not set
+    if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+      use_color=1
+    fi
+  fi
+
+  # Resolve color sequences (yellow for size/date)
+  # Prefer tput (terminal capabilities); fallback to ANSI escapes.
+  local YELLOW="" RESET=""
+  if [[ "$use_color" -eq 1 ]]; then
+    if command -v tput >/dev/null 2>&1; then
+      # 3 = yellow (may vary by theme); sgr0 resets.
+      YELLOW="$(tput setaf 3 2>/dev/null || true)"
+      RESET="$(tput sgr0 2>/dev/null || true)"
+    fi
+    # Fallbacks if tput failed or returned empty
+    [[ -z "$YELLOW" ]] && YELLOW=$'\033[33m'
+    [[ -z "$RESET"  ]] && RESET=$'\033[0m'
+  fi
+
+  # Header with current timestamp (local)
+  local now
+  now="$(date '+%Y-%m-%d %H:%M:%S %Z')"
+  echo "Top ${n} largest files under: $(pwd)"
+  echo "As of: ${now}"
+  echo "------------------------------------------------------------"
+
+  # Prefer GNU find's -printf (size, mtime, path) with NUL separation.
+  if find . -type f -printf '%s\t%TY-%Tm-%Td %TH:%TM\t%p\0' >/dev/null 2>&1; then
+    find . -type f -printf '%s\t%TY-%Tm-%Td %TH:%TM\t%p\0' 2>/dev/null \
+      | sort -z -t $'\t' -k1,1nr \
+      | awk -v RS='\0' -F"\t" -v n="$n" -v sc="$YELLOW" -v dc="$YELLOW" -v rc="$RESET" '
+          function human(bytes,  u, v) {
+            v=bytes+0; u="B";
+            if (v>=1024){v/=1024;u="K"}
+            if (v>=1024){v/=1024;u="M"}
+            if (v>=1024){v/=1024;u="G"}
+            if (v>=1024){v/=1024;u="T"}
+            return (v>=10) ? sprintf("%4.0f%s", v, u) : sprintf("%4.1f%s", v, u)
+          }
+          NF>=3 {
+            if (count++ < n) {
+              sz = human($1);
+              dt = $2;
+              # If color strings are non-empty, wrap size/date
+              if (length(sc)) sz = sc sz rc;
+              if (length(dc)) dt = dc dt rc;
+              printf "%8s  %-16s  %s\n", sz, dt, $3
+            } else exit
+          }'
+
+  else
+    # Fallbacks (newline-delimited; head -n works fine here)
+    if stat -f '%z %N' / >/dev/null 2>&1; then
+      # BSD/macOS stat
+      find . -type f -print0 2>/dev/null \
+        | xargs -0 -I{} stat -f '%z\t%Sm\t%N' -t '%Y-%m-%d %H:%M' "{}" 2>/dev/null \
+        | LC_ALL=C sort -t $'\t' -k1,1nr \
+        | head -n "$n" \
+        | awk -F"\t" -v sc="$YELLOW" -v dc="$YELLOW" -v rc="$RESET" '
+            function human(bytes,  u, v) {
+              v=bytes+0; u="B";
+              if (v>=1024){v/=1024;u="K"}
+              if (v>=1024){v/=1024;u="M"}
+              if (v>=1024){v/=1024;u="G"}
+              if (v>=1024){v/=1024;u="T"}
+              return (v>=10) ? sprintf("%4.0f%s", v, u) : sprintf("%4.1f%s", v, u)
+            }
+            NF>=3 {
+              sz = human($1); dt = $2
+              if (length(sc)) sz = sc sz rc;
+              if (length(dc)) dt = dc dt rc;
+              printf "%8s  %-16s  %s\n", sz, dt, $3
+            }'
+    elif stat -c '%s %n' / >/dev/null 2>&1; then
+      # GNU stat
+      find . -type f -print0 2>/dev/null \
+        | xargs -0 -I{} stat -c '%s\t%y\t%n' "{}" 2>/dev/null \
+        | LC_ALL=C sort -t $'\t' -k1,1nr \
+        | head -n "$n" \
+        | awk -F"\t" -v sc="$YELLOW" -v dc="$YELLOW" -v rc="$RESET" '
+            function human(bytes,  u, v) {
+              v=bytes+0; u="B";
+              if (v>=1024){v/=1024;u="K"}
+              if (v>=1024){v/=1024;u="M"}
+              if (v>=1024){v/=1024;u="G"}
+              if (v>=1024){v/=1024;u="T"}
+              return (v>=10) ? sprintf("%4.0f%s", v, u) : sprintf("%4.1f%s", v, u)
+            }
+            {
+              # mtime example: "2026-01-16 11:22:30.123456789 -0500"
+              m=$2 " " $3
+              sub(/\.[0-9]+$/, "", m)     # drop fractional seconds
+              gsub(/:[0-9][0-9]$/, "", m) # keep YYYY-MM-DD HH:MM
+              sz = human($1); dt = m
+              if (length(sc)) sz = sc sz rc;
+              if (length(dc)) dt = dc dt rc;
+              printf "%8s  %-16s  %s\n", sz, dt, $4
+            }'
+    else
+      echo "topfiles: neither GNU find -printf nor usable stat found." >&2
+      return 1
+    fi
+  fi
+}      ##### FUNCTION END : topfiles
+
+
+
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .function_which
+# Created:      2026-01-08
+# Purpose:      Custom function for a better which command for unix
+# ============================================
+
+
+########################
+## Color Variables
+C_NC="\e[0m"
+C_RD="\e[31m"
+C_GN="\e[32m"
+C_YW="\e[33m"
+
+
+#####
+##  Remove which as alias so function below works
+if [[ $(type -t which) = "alias"  ]]; then
+  unalias which
+fi
+
+#####
+## [Function which ] - Finds the location of a function, alias, builtin, etc
+which() {
+## Written by Adam Brandeis - 2019-11-11
+  if [[ -z $1 ]]; then
+    echo -e " "
+    echo -e "${C_CY}which${C_NC}"
+    echo -e "   ${C_YW} This finds the location of Functions and/or Alias, Builtin, File or Keyword ${C_NC}"
+    echo -e " "
+    echo -e "   ${C_GN} Usage: ${C_NC}"
+    echo -e "   ${C_CY} which ${C_NC}<alias or funciton name or file or builtin or keyword>  ${C_NC}"
+    echo -e " "
+    echo -e "   ${C_YW} Examples: ${C_NC}"
+    echo -e "    ========="
+    echo -e "      ${C_GN}which ll     ${C_NC}"    ## Example Alias
+    echo -e "      ${C_GN}which cpy    ${C_NC}"    ## Example Function
+    echo -e "      ${C_GN}which lcd    ${C_NC}"    ## Example Function
+    echo -e "      ${C_GN}which for    ${C_NC}"    ## Example keyword
+    echo -e "      ${C_GN}which awk    ${C_NC}"    ## Example file
+
+  elif [[ $(type -t $1) =~ (alias|function|builtin|file|keyword)$ ]]; then
+    echo -e " "
+    echo -e "${C_GN}$1 is a          :${C_YW}" $(type -t $1) ${C_NC}
+
+    if [[ $(type -t $1) == "alias" ]]; then
+      type -a $1
+      echo " "
+      echo -e "${C_GN}$1 is located in :${C_YW}" ${C_NC}
+      grep -Rn --color=always -E '^[[:space:]]*alias[[:space:]]+' ${BASHRC_HOME} ~/.*bash* ~/.profile /etc/{bash.bashrc,bashrc,profile,profile.d} 2>/dev/null | grep $1 | grep -v /*.bak | grep -v ${HOME}/.bash_history
+
+    elif [[ $(type -t $1) == "function" ]]; then
+      shopt -s extdebug
+      echo -e "${C_GN}$1 is located in :${C_YW}" $(declare -F $1) ${C_NC}
+      shopt -u extdebug
+      echo " "
+      type -a $1
+
+    elif  [[ $(type -t $1) =~ (builtin|file|keyword)$ ]]; then
+      echo -e "See          :   man $1"
+      echo " "
+      type -a $1
+      echo " "
+      man -f $1
+    fi
+
+  else
+    echo " "
+    echo -e "${C_RD}$1 not found or not a valid command ${C_NC}"
+  fi
+    echo " "
+}      ##### FUNCTION END : which
+
+----------------------------------------------------------------
+
+~/ADAM/cust-bash-shell] cat .bashrc_cust .bashrc_functions .bashrc_alias
+# .bashrc_cust
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .bashrc_cust
+# Created on:   2026-01-08
+# Description:  Custom .bashrc for cust
+# Purpose:      Custom prompt with date/time + server line,
+#               colored prompt, and useful aliases
+# ============================================
+
+##### ── 1)SET CUSTOM BASH HOME ───────────────────────────────────────
+#export BASHRC_HOME="$HOME/ADAM/.adam-cust-bash"
+
+# Resolve the directory containing the current file
+# Works even when sourced, symlinked, etc.
+_brc_src="${BASH_SOURCE[0]}"
+while [ -h "$_brc_src" ]; do
+  _brc_dir="$(cd -P "$(dirname "$_brc_src")" && pwd)"
+  _brc_src="$(readlink "$_brc_src")"
+  [[ $_brc_src != /* ]] && _brc_src="$_brc_dir/$_brc_src"
+done
+_brc_dir="$(cd -P "$(dirname "$_brc_src")" && pwd)"
+
+# If this file is in the repo root:
+export BASHRC_HOME="$_brc_dir"
+
+# If this file is in a subfolder, e.g., repo/scripts/.bashrc_cust:
+# export BASHRC_HOME="$(cd "$_brc_dir/.." && pwd)"
+
+# Turn history on explicitly
+#set -o history
+
+##### ── 2)BASH OPTIONS ───────────────────────────────────────
+# =========================
+#  BASH OPTIONS
+# =========================
+##### ── 1) Shell options (set early) ───────────────────────────────────────
+shopt -s histappend              # When session close, history will append to .bash_history file rather than overwriting
+shopt -s histverify              # Verify history before re-running a command via !<last_command>
+
+# (for example, cd /vr/lgo/apaache would find /var/log/apache)
+shopt -s cdspell                 # Correct cd typos.  When changing directory small typos can be ignored by bash
+shopt -s checkwinsize            # Fix annoying line wrapping issues after resize terminal window.
+shopt -s globstar                # ** recursive globs
+
+# cmdhist If set, bash attempts to save all lines of a multiple-line command in the same history entry.
+#        Allow easy re-editing of multi-line commands.
+shopt -ps cmdhist
+
+# lithist If set, and the cmdhist option is enabled, multi-line commands are saved to the history with embedded
+#        newlines rather than using semicolon separators where possible.
+shopt -pu lithist
+
+
+##### ── 3)Better history behavior ───────────────────────────────────────
+HISTSIZE=5000
+HISTFILESIZE=100000
+
+HISTTIMEFORMAT="%F %T "
+
+HISTCONTROL=ignorespace:ignoredups
+##### ── 4)HISTIGNORE  ───────────────────────────────────────
+HISTIG_COMMON='ll:pwd:clear:cls:exit:logout:ag*'
+HISTIG_HIST='history*:hist*:hcg*'
+HISTIG_cust='*custbash*:*sL*:mybashrc*:newsource*:*SUPERbash*'
+HISTIG_FUNCS='histdel*:histdel_last*'
+HISTIGNORE="cd :${HISTIG_COMMON}:${HISTIG_FUNCS}:${HISTIG_HIST}:${HISTIG_cust}"
+
+
+##### ── 5)SOURCE FILES ───────────────────────────────────────
+# =========================
+#  Source Files
+# =========================
+if [ -f ${BASHRC_HOME}/.bashrc_alias ]; then
+    source ${BASHRC_HOME}/.bashrc_alias
+fi
+
+if [ -f ${BASHRC_HOME}/.bashrc_functions ]; then
+    source ${BASHRC_HOME}/.bashrc_functions
+fi
+
+if [ -f ${BASHRC_HOME}/.bash_alias_cust ]; then
+    source ${BASHRC_HOME}/.bash_alias_cust
+fi
+
+if [ -f ${BASHRC_HOME}/colors ]; then
+    source ${BASHRC_HOME}/colors
+fi
+
+
+# =========================
+#  Color Variables
+# =========================
+C_NC="\e[0m"
+C_RD="\e[31m"
+C_GN="\e[32m"
+C_YW="\e[33m"
+
+
+##### ── PROMPT [PS1] VARIABLES ───────────────────────────────────────
+##    COLORS IN USE FOR PS
+PSC_NC='\[\e[0m\]'                                  ### Color Reset - No Color
+PSC_RD='\[\e[0;41m\]'                               ### Red BG - White FG
+PSC_GN='\[\e[0;32m\]'                               ### Green with black text
+PSC_CY='\[\e[0;96m\]'                               ### Cyan 2
+PSC_MA='\[\e[1;35m\]'                               ### Magenta Bold
+PSC_RDW='\[\e[0;101m\]'                             ### Red Hi Intense BG - White FG
+PSC_YW='\[\e[38;5;220m\]'                           ### Yellow
+PSC_WHT='\[\e[38;5;15m\]'                           ### White
+PSC_GN2='\[\e[38;5;46m\]'                           ### Neon Green
+PSC_CY2='\[\e[38;5;51m\]'                           ### Cyan
+PSC_PRP='\[\e[38;5;147m\]'                          ### Purple          [GreenYellow] - Hostname
+PSC_RD2='\[\e[38;5;196m\]'                          ### Red FG - Black BG
+PSC_YW2='\[\e[38;1;33m\]'                           ### Neon Yellow
+PSC_BLK='\[\e[38;5;240m\]'                          ### Black
+PSC_ORG='\[\e[38;5;214m\]'
+#PSC_RD="$PSC_NC\[\e[5;37;41m\]"                    ### Red BG - White FG
+
+# Get the FQDN once per shell start
+export FullHost=$(hostname -f)
+
+##### ── BUILD FULL HOSTNAME  ───────────────────────────────────────
+# =========================
+# Build the colored display version of FullHost
+# 'report' or 'gate' -> magenta (return to yellow after each match)
+# Otherwise, whole hostname -> green
+if [[ "$FullHost" == *report* || "$FullHost" == *gate* ]]; then
+  # Start yellow for the whole line
+  colored_host="${PSC_YW}${FullHost}${PSC_NC}"
+
+  # Highlight 'report' in magenta, then return to yellow
+  colored_host="${colored_host//int/${PSC_MA}int${PSC_YW}}${PSC_NC}"
+
+  # Highlight 'report' in magenta, then return to yellow
+  colored_host="${colored_host//report/${PSC_MA}report${PSC_YW}}${PSC_NC}"
+
+  # Highlight 'gate' in magenta, then return to yellow
+  colored_host="${colored_host//gate/${PSC_MA}gate${PSC_YW}}${PSC_NC}"
+else
+  # Entire hostname green
+  colored_host="${PSC_GN}${FullHost}${PSC_NC}"
+fi
+
+##### ── DATE/TIME BOX PROD ALERT  ───────────────────────────────────────
+# =========================
+export PS_DT="$PSC_CY2\d \@$PSC_NC"                 ### Date/Time         - Cyan
+export PSDTHOST="$PSC_YW${colored_host}$PSC_NC"     ### Hostname          - Yellow
+#export PSDTHOST="$PSC_YW${FullHost}$PSC_NC"         ### Hostname          - Yellow
+#export PSDTHOST="$PSC_YW\H$PSC_NC"                  ### Hostname          - Yellow
+export PSUSR="$PSC_MA\u$PSC_NC"                     ### User              - Magenta
+export PS_AT="$PSC_GN2@$PSC_NC"                     ### @                 - Neon Green
+export PSHOST="$PSC_YW\H:$PSC_NC"                   ### Hostname          - Yellow
+export PSPWD="$PSC_WHT\w$PSC_NC"                    ### PWD               - White - with color reset
+export PSPROMPT="$PSC_GN2] $PSC_NC"                 ### ]                 - Neon Green
+
+
+##### ── SET PROMPT [PS1] [PS2] ───────────────────────────────────────
+# =========================
+export PS1="\n${PS_DT} ${PSDTHOST}\n\
+${PSUSR}${PS_AT}${PSHOST}${PSPWD}${PSPROMPT}"
+
+export PS2="${PSC_GN2}continue-> ${PSC_NC}"
+
+SPACER="    "
+
+##### ── SET PROMPT_COMMAND ───────────────────────────────────────
+# =========================
+##  PROMPT_COMMAND to set the title bar of the putty window                                ::: #
+##  history -a  # append history lines from this session to the history file.              ::: #
+PROMPT_COMMAND='if [[ ! ( $(date +"%T") < "$prodStartTime" || $(date +"%T") > "$prodEndTime" ) ]]; then MESSAGE="  "; else MESSAGE=" "; fi; echo -ne " \e]0; ${USER}@${HOSTNAME}: ${PWD} ${SPACER}${SPACER}|${SPACER}$PC_HOST${SPACER}|${SPACER}YOU ARE $USER${SPACER}|${SPACER}$(echo ${MESSAGE})${SPACER}| \007" && history -a'
+
+
+##### ── For colorized MAN pages ───────────────────────────────────────
+# =========================
+#alias lessr="less -f -F -R -J -P?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]"
+#export LESS='-f -R -S -N -M -F -X'
+
+
+lessr() {
+  less -f -F -R -J -P'?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]' $1
+}
+
+alias lessr2='less -f -F -R -J -P'\''?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]'\'
+
+#alias lessr='less -f -F -R -J -P'\''?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]'\'
+
+
+export LESS='-f -F -R -J -P?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]'
+export LESSBINFMT="*k<%02X>"             # show ^A [control] characters in different color
+export LESS_TERMCAP_mb=$'\e[01;30m'      # begin blinking                 [grey-black bold]
+export LESS_TERMCAP_md=$'\e[38;05;38m'   # begin bold                     [Cyan on black]
+export LESS_TERMCAP_se=$'\e[0m'          # end standout-mode              [reset]
+export LESS_TERMCAP_so=$'\e[07;107;34m'  # begin standout-mode - info box [white on blue]
+export LESS_TERMCAP_ue=$'\e[0m'          # end underline                  [reset]
+export LESS_TERMCAP_us=$'\e[01;04;32m'   # begin underline                [bold underlined Green]
+export LESS_TERMCAP_me=$'\e[0m'          # end mode                       [reset]
+
+
+##### ── BASH COMPLETE  ───────────────────────────────────────
+# =========================
+##  COMPLETE
+complete -c type which man whatis locate ## (-c) Add auto complete for specific commands
+complete -d -f ll ls lcd goal            ## (-d / -f) Add auto complete for directories and files
+
+#complete -C '/usr/local/bin/aws_completer' aws
+
+## better ssh hostname autocomplete
+complete -o default -o nospace -W "$(
+  {
+    # from known_hosts (column 1, strip trailing ,alias lists)
+    if [ -r "$HOME/.ssh/known_hosts" ]; then
+      awk '{print $1}' "$HOME/.ssh/known_hosts" | sed 's/,.*//'
+    fi
+
+    # from config files (Host lines without globs)
+    # - ~/.ssh/config
+    if [ -r "$HOME/.ssh/config" ]; then
+      grep -hE '^Host[[:space:]]+' "$HOME/.ssh/config" | grep -v '[?*]' | cut -d ' ' -f 2-
+    fi
+
+    # - ~/.ssh/config.d/* (if directory exists and has files)
+    if [ -d "$HOME/.ssh/config.d" ]; then
+      # shellcheck disable=SC2035 # intentional glob
+      grep -hE '^Host[[:space:]]+' "$HOME/.ssh/config.d"/* 2>/dev/null | grep -v '[?*]' | cut -d ' ' -f 2-
+    fi
+  } \
+  | sed -e 's/.mgmt.prd.cust.com//' -e 's/.prd.cust.com//' \
+  | sort -u
+)" host ping rsync scp sftp ssh jump
+
+
+# Completion (if available)
+if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
+  . /etc/bash_completion
+fi
+
+
+#!/bin/bash
+
+# ============================================
+# Filename:     .bashrc_functions
+# Description:  Custom .bashrc_functions file
+# Created on:   2026-01-08
+# Purpose:      sourcing other functions
+# Functions list: histdel, dfc, du., topfiles,
+# ============================================
+
+# Resolve the directory containing the current file
+# Works even when sourced, symlinked, etc.
+_brc_src="${BASH_SOURCE[0]}"
+while [ -h "$_brc_src" ]; do
+  _brc_dir="$(cd -P "$(dirname "$_brc_src")" && pwd)"
+  _brc_src="$(readlink "$_brc_src")"
+  [[ $_brc_src != /* ]] && _brc_src="$_brc_dir/$_brc_src"
+done
+_brc_dir="$(cd -P "$(dirname "$_brc_src")" && pwd)"
+
+# If this file is in the repo root:
+export BASHRC_HOME="$_brc_dir"
+
+# If this file is in a subfolder, e.g., repo/scripts/.bashrc_cust:
+# export BASHRC_HOME="$(cd "$_brc_dir/.." && pwd)"
+
+## ===== Functions Source List =====
+## Source Function which
+if [ -f ${BASHRC_HOME}/.function_which ]; then
+  source ${BASHRC_HOME}/.function_which
+fi
+
+## Source Function cpy
+if [ -f ${BASHRC_HOME}/.function_cpy ]; then
+  source ${BASHRC_HOME}/.function_cpy
+fi
+
+## Source Function lcd
+if [ -f ${BASHRC_HOME}/.function_lcd ]; then
+  source ${BASHRC_HOME}/.function_lcd
+fi
+
+## Source Function dfc
+if [ -f ${BASHRC_HOME}/.function_dfc ]; then
+  source ${BASHRC_HOME}/.function_dfc
+fi
+
+## Source Function topfiles
+if [ -f ${BASHRC_HOME}/.function_topfiles ]; then
+  source ${BASHRC_HOME}/.function_topfiles
+fi
+
+## Source Function lsc
+if [ -f ${BASHRC_HOME}/.function_lsc ]; then
+  source ${BASHRC_HOME}/.function_lsc
+fi
+
+## Source Function du_better - du.
+if [ -f ${BASHRC_HOME}/.function_du_better ]; then
+  source ${BASHRC_HOME}/.function_du_better
+fi
+
+## Source Function cust-bash-shell_help Info
+if [ -f ${BASHRC_HOME}/cust-bash-shell_help ]; then
+  source ${BASHRC_HOME}/cust-bash-shell_help
+fi
+
+# Always source the prod loader; it decides whether to activate based on FQDN.
+if [ -r "${HOME}/ADAM/cust-bash-shell/prod/functions_prod_source" ]; then
+  # shellcheck source=/dev/null
+  . "${HOME}/ADAM/cust-bash-shell/prod/functions_prod_source"
+fi
+
+#####   ADDITIONAL FUNCTIONS   #####
+
+# --- Smart Vim launcher: uses config based on detected major version ---
+# Depends on BASHRC_HOME being set to your root (e.g., ~/cust-bash-shell)
+bvi() {
+  # Grab "7" or "8" from: Vim - Vi IMproved X.Y (...
+  local major
+  major="$(vim --version 2>/dev/null | awk 'NR==1{print $5}' | cut -d. -f1)"
+
+  # Build the shared -u argument (your custom vimrc)
+  local uarg="-u ${BASHRC_HOME}/.vim/.vimrc"
+
+  case "$major" in
+    7)
+      # Vim 7.x → use 'vim'
+      command vim ${uarg} "$@"
+      ;;
+    8)
+      # Vim 8.x → use explicit /usr/bin/vi (as requested)
+      /usr/bin/vim ${uarg} "$@"
+      ;;
+    *)
+      # Fallbacks & helpful messaging
+      if command -v /usr/bin/vim >/dev/null 2>&1; then
+        echo "WARN: Unknown Vim major version (${major:-unknown}); falling back to /usr/bin/vi." >&2
+        /usr/bin/vim ${uarg} "$@"
+      else
+        echo "ERROR: Could not determine Vim version and /usr/bin/vi not found." >&2
+        return 127
+      fi
+      ;;
+  esac
+}
+
+##### ── Helper: delete previous command from history ────────────────────
+##  [History clean up last line delete] #
+##  [Function histdel] #
+histdel() {
+  if [ -f "$HISTFILE" ]; then
+    # use sed to delete last 2 lines in place
+    sed -i -e :a -e '$d;N;2,2ba' -e 'P;D' "$HISTFILE"
+    echo "Last 2 lines removed from $HISTFILE."
+
+    #reload history into current
+    history -c
+    history -r
+    # show last 5 lines
+    history 5
+  else
+    echo "error: hist file not found."
+  fi
+}
+
+
+# Reusable Bash function (crongrep)
+# Case-insensitive variant:
+# Search for a word and print from the header # above to the next # below
+function crongrep() {
+  local pat="$1"
+  crontab -l | awk -v IGNORECASE=1 -v pat="$pat" '
+    /^#/ {
+      if (inblk && hit) print blk
+      blk = $0 ORS; inblk = 1; hit = 0; next
+    }
+    { inblk = 1; blk = blk $0 ORS; if ($0 ~ pat) hit = 1 }
+    END { if (inblk && hit) print blk }
+  '
+}
+
+
+
+# .bashrc_alias
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .bashrc_alias
+# Created:      2026-01-08
+# Purpose:      Custom alias list and useful aliases
+# ============================================
+
+# Resolve the directory containing the current file
+# Works even when sourced, symlinked, etc.
+_brc_src="${BASH_SOURCE[0]}"
+while [ -h "$_brc_src" ]; do
+  _brc_dir="$(cd -P "$(dirname "$_brc_src")" && pwd)"
+  _brc_src="$(readlink "$_brc_src")"
+  [[ $_brc_src != /* ]] && _brc_src="$_brc_dir/$_brc_src"
+done
+_brc_dir="$(cd -P "$(dirname "$_brc_src")" && pwd)"
+
+# If this file is in the repo root:
+export BASHRC_HOME="$_brc_dir"
+
+# If this file is in a subfolder, e.g., repo/scripts/.bashrc_cust:
+# export BASHRC_HOME="$(cd "$_brc_dir/.." && pwd)"
+
+# ----- Aliases: extra -----
+alias crongrep="crontab -l | grep"
+
+
+## ====================== ##
+## ===== Alias List ===== ##
+
+## ===== Bash List =====
+alias newsource="source ~/.bashrc; source ${BASHRC_HOME}/.bashrc_cust"
+
+# ----- rsync - cust-bash-shell -----
+alias sLl_bash="rsync -avzh -e ssh --update --delete --progress ${BASHRC_HOME}"
+alias sLdr_bash="rsync -avzh -e ssh --update --delete --progress --dry-run ${BASHRC_HOME}"
+
+## ----- vi -----
+alias vim="vim -u ${BASHRC_HOME}/.vim/.vimrc"
+alias vi="vim -u ${BASHRC_HOME}/.vim/.vimrc"
+
+# ----- Quick editors (adjust to your preference) -----
+if command -v vim >/dev/null 2>&1; then
+  alias v='vim'
+elif command -v nvim >/dev/null 2>&1; then
+  alias v='nvim'
+else
+  alias v='vi'
+fi
+
+# ----- Aliases: grep -----
+alias grep="grep --color=auto"
+alias cgrep="grep --color=always"
+alias egrep='egrep --color=always'
+alias fgrep='fgrep --color=always'
+alias igrep='grep --color=always -i'  # ignore case grep
+
+alias psefg="ps -ef | grep -v 'grep' | grep $1"
+
+
+# ----- Aliases: core -----
+alias cls="printf '\e[H\e[2J'"
+alias ls='ls --color=auto'
+alias ll='ls -alF --group-directories-first'
+alias la='ls -A'
+alias l='ls -CF'
+alias goal='ls -goal --color=always'
+alias lsl='ls -latr'
+alias hist="history"
+alias hcg="history | cgrep"
+alias ag="alias | cgrep"
+alias cg="crontab -l | cgrep"
+
+# ----- Sudo convenience -----
+alias please='sudo'
+alias sudoe='sudo -E'
+
+# ----- Shortcuts -----
+alias reload='source ~/.bashrc'
+alias openports='sudo lsof -i -P -n | grep LISTEN'
+
+# ----- Navigation helpers  -----
+alias cd..='cd ..'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias ~='cd ~'
+alias -- -='cd -'
+
+# ----- Safer operations  -----
+alias cp='cp -i'
+alias mv='mv -i'
+alias rm='rm -i'
+
+# ----- System info -----
+alias df='df -h'
+alias du='du -h'
+alias free='free -h'
+alias psu='ps aux --sort=-%mem | head -n 15'
+alias pscpu='ps aux --sort=-%cpu | head -n 15'
+
+# Networking
+alias ip4='ip -4 addr'
+alias ip6='ip -6 addr'
+alias ipr='ip route'
+alias ports='ss -tulpen'
+
+# Process helpers
+alias myproc='pgrep -fl'
+alias kill9='xargs -r kill -9'
+
+# Git shortcuts
+#alias gs='git status'
+#alias ga='git add -A'
+#alias gc='git commit -m'
+#alias gca='git commit --amend --no-edit'
+#alias gco='git checkout'
+#alias gb='git branch'
+#alias gd='git diff'
+#alias gl='git log --oneline --graph --decorate --all'
+#alias gp='git pull --rebase --autostash'
+#alias gP='git push'
+
+# Docker (only if present)
+if command -v docker >/dev/null 2>&1; then
+  alias dps='docker ps'
+  alias dpa='docker ps -a'
+  alias di='docker images'
+  alias dlogs='docker logs -f'
+  alias drm='docker rm'
+  alias drmi='docker rmi'
+fi
+
+# Kubernetes (only if present)
+if command -v kubectl >/dev/null 2>&1; then
+  alias k='kubectl'
+  alias kgp='kubectl get pods'
+  alias kgs='kubectl get svc'
+  alias kgn='kubectl get nodes'
+  alias kctx='kubectl config current-context'
+fi
+
+
+~/ADAM/cust-bash-shell]   cat cust-bash-shell_help
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     cust-bash-shell_help
+# Created:      2026-01-08
+# Purpose:      enter a directory and list contents
+# ============================================
+
+########################
+## [Function cust-bash-shell_help] #
+
+cust-bash-shell_help() {
+#  if [[ $1 == '-h' ]]; then
+    echo -e " "
+    echo -e " ${C_YW}This is the help info for prompt and profile${C_NC} ${C_CY}cust-bash ${C_NC}"
+    echo -e " ${C_YW}cust-bash-shell_help is a profile written to assist, improve and speed up troubleshooting and general Unix tasks or commands.${C_NC}"
+    echo -e " "
+    echo -e "                   ${C_GN}FUNCTIONS INCLUDE:${C_NC}"
+    echo -e "                   ${C_RD}==================${C_NC}"
+    echo -e "      ${C_CY}which${C_NC} - ${C_YW}improves the which command in Unix to give a user more information and details \n         about a command, function, alias or built-in command. ${C_NC}"
+    echo -e "      ${C_CY}lcd${C_NC} - ${C_YW}'cd' into a directory and 'list' the contents in a single command.  Type 'lcd -h' to see usage. ${C_NC}"
+    echo -e "      ${C_CY}cpy${C_NC} - ${C_YW}copy and backup a file using a single command and the filename.  Type 'cpy' to see usage.  ${C_NC}"
+    echo -e "      ${C_CY}dfc ${C_NC} - ${C_YW}show a better human-readable disk usage with colors Type 'dfc -h' to see usage.${C_NC}"
+    echo -e "      ${C_CY}lsc${C_NC} - ${C_YW}TBD ${C_NC}"
+    echo -e "      ${C_CY}topfiles${C_NC} - ${C_YW}TBD ${C_NC}"
+    echo -e "      ${C_CY}du. (du_better)${C_NC} - ${C_YW}TBD ${C_NC}"
+}      ##### FUNCTION END : cust-bash-shell_help
+
+
+
+#!/bin/bash .bashrc - to add
+
+### THE BELOW IS TO BE ADDED TO A .bashrc FILE TO SETUP THE ALIAS FOR custbash or SUPERbash
+
+###########################################
+#     SETUP OF custbash ALIAS                                 #
+###########################################
+
+##### ── custbash profile loader ────────────────────────────────────
+function custbash() {
+  local candidate=""
+  # 1) Fast path: if BASHRC_HOME is set, use it
+  if [[ -n "$BASHRC_HOME" && -f "$BASHRC_HOME/.bashrc_cust" ]]; then
+    candidate="$BASHRC_HOME/.bashrc_cust"
+  # 2) Otherwise: search exactly 3 levels below ~ for .bashrc_cust
+  else
+    # This matches: ~/level1/level2/level3/.bashrc_cust
+    candidate="$(
+      find "$HOME"/ \
+        -mindepth 3 -maxdepth 3 \
+        -type f -name ".bashrc_cust" \
+        -path "*/cust-bash-shell/*" \
+        -print -quit 2>/dev/null
+    )"
+  fi
+  # 3) Source if found
+  if [[ -n "$candidate" && -f "$candidate" ]]; then
+    # shellcheck disable=SC1090
+    source "$candidate"
+  else
+    echo -e ""
+    echo -e "\e[38;5;220mcustbash not found. Could not locate '.bashrc_cust' under a 'cust-bash-shell' directory exactly 3 levels below ~, nor via \$BASHRC_HOME.\e[0m"
+    echo -e "\e[0;96mChecked:\e[0m"
+    echo -e "  - \$BASHRC_HOME/.bashrc_cust (if set)"
+    echo -e "  - find ~ -mindepth 3 -maxdepth 3 -type f -name '.bashrc_cust' -path '*/cust-bash-shell/*'"
+    echo -e ""
+    echo -e "\e[0;96mTip: set BASHRC_HOME to your repo root, e.g.:\e[0m"
+    echo -e "  export BASHRC_HOME=\"\$HOME/ADAM/cust-bash-shell\""
+    echo -e ""
+  fi
+}
+
+function SUPERbash() { custbash "$@"; }
+
+
+
+
+==================================================================
+
+~/ADAM/cust-bash-shell/.vim]  cat .vimrc
+" .vimrc file created for vim
+" by Adam Brandeis
+" last updated: 2026-01-08
+
+" use vim defaults
+set nocompatible
+
+" === Root dir for all my Vim files ===
+let g:dotvim = expand('$BASHRC_HOME/.vim')
+
+" Runtime path: do NOT inject $VIMRUNTIME; let Vim discover its own runtime.
+" Only add your personal dirs.
+" runtimepath (prepend your dirs, don’t inject $VIMRUNTIME)
+execute 'set runtimepath^=' . fnameescape(g:dotvim)
+execute 'set runtimepath^=' . fnameescape(g:dotvim . '/autoload')
+
+" Feature guards
+" Pathogen (guarded so 7.4 without pathogen won't error)
+if exists('*pathogen#infect')
+  execute pathogen#infect()
+endif
+
+" Color capabilities: prefer truecolor when available
+if has('termguicolors')
+  set termguicolors
+endif
+set t_Co=256
+
+" If the environment has a stale VIMRUNTIME pointing to a non-existent dir, clear it.
+if exists('$VIMRUNTIME') && !isdirectory(expand('$VIMRUNTIME'))
+  let $VIMRUNTIME = ''
+endif
+
+" Syntax and UI basics
+syntax on                       |  " syntax highlighing
+set showcmd                     |  " display incomplete commands
+set nobackup                    |  " do not keep a backup file
+set title                       |  " show title in console title bar
+set ttyfast                     |  " smoother changes
+set modeline                    |  " last lines in document sets vim mode
+set modelines=3                 |  " number lines checked for modelines
+set shortmess=atI               |  " Abbreviate messages
+set nostartofline               |  " don't jump to first character when paging
+set whichwrap=b,s,h,l,\<,\>,[,] |  " move freely between files
+"set autowrite                |  " auto saves changes when quitting and swiching buffer
+
+
+" Build the viminfo option using g:dotvim
+let s:viminfofile = g:dotvim . '/.viminfo'
+let &viminfo = "%,<800,'10,/50,:100,h,f0,n" . s:viminfofile  | " larger more detailed viminfo cache
+
+
+" ============ SET AWESOME STATUS LINE ============
+set ls=2                        " always show status line
+set statusline=
+set statusline=%#1#%h%w%m%r%R%W                " flags (h:help:[help], w:window:[Preview], m:modified:[+][-], r:readonly:[RO])
+set statusline+=\[%{mode()}]                   " current mode
+set statusline+=%#NormalColor#%{(mode()=='n')?'\ \NORMAL\ ':''}
+set statusline+=%#InsertColor#%{(mode()=='i')?'\ \INSERT\ ':''}
+set statusline+=%#ReplaceColor#%{(mode()=='R')?'\ \REPLACE\ ':''}
+set statusline+=%#VisualColor#%{(mode()=='v')?'\ \VISUAL\ ':''}
+
+set statusline+=%4*\ %<%F                      " show full path of filename in status line
+
+set statusline+=\                              " blank space
+set statusline+=%{synIDattr(synID(line('.'),col('.'),1),'name')}\  " highlight type on word
+
+set statusline+=\                              " blank space
+set statusline+=%=                             " right-align from now on
+set statusline+=%{PasteForStatusline()}        " paste flag
+
+set statusline+=\                              " blank space
+set statusline+=\ %y[%{&ff}]                   " filetype and show encoding
+set statusline+=[%{GetBG()}\:%{GetCN()}]       " background and colorscheme
+set statusline+=\[row\:%(%3l\/%L%)]\           " current row/total num of lines
+set statusline+=%P                             " percentage of the file
+
+set statusline+=%#warningmsg#                  " Syntastic error flag
+"set statusline+=%{SyntasticStatuslineFlag()}
+set statusline+=%*                             " Syntastic error flag
+"set statusline+=%3*%{StatlineTrailingSpaceWarning()}%*
+
+"The |hl-StatusLine| and |hl-StatusLineNC| groups usually set the colors with
+"`term=reverse` which means the foreground color will be used as background
+"color, you can change the colors like this: >
+    " greyscale statusline
+    hi StatusLine   guifg=#FFFFFF guibg=#FF0000 gui=bold ctermfg=15 ctermbg=1
+    hi StatusLineNC guifg=#808080 guibg=#000000 gui=bold ctermfg=8  ctermbg=0
+
+" ====== colors (for statusline) ======
+
+" using link instead of named highlight group inside the statusline to make it
+" easier to customize, reseting the User[n] highlight will remove the link.
+" Another benefit is that colors will adapt to colorscheme.
+
+"filename
+hi default link User1 Identifier
+" flags
+hi default link User2 Statement
+" errors
+hi default link User3 Error
+" fugitive
+hi default link User4 Special
+
+
+" ============ Custom Key Bindings and Shortcuts ============
+let mapleader=";"    " leader is semi-colon i.e. ;h or ;n
+
+" NUMBERS - enable / disable view NUMBER line
+map <leader>n :set nu!<CR>
+map <F7> :set nu!<CR>
+
+" PASTE - Toggle paste mode - F11 or leader = ;p
+map <leader>p :set invpaste!<CR>
+map <F11> :set invpaste!<CR>
+set pastetoggle=<F11>
+"map <leader>p :set invpaste!<CR>
+
+" HIGHLIGHT - turn off search highlight - leader = ;
+" nnoremap <leader><space> :nohlsearch<CR>
+map <leader>h :set hlsearch!<cr>
+map <F8> :set hlsearch!<cr>
+
+" Show all characters
+set listchars=tab:>-,trail:▒,eol:$
+nmap <silent> <leader>ls :set nolist!<CR>
+
+" Show tabs - characters
+map <leader><tab> :set list!<CR>
+
+" Convert tabs to spaces shortcut hotkey
+map <leader><tab><space> :set list<CR> :set expandtab<CR> :retab <CR>
+
+" F10 to togle bg=dark bg=light
+map <F10> :let &background = ( &background == "dark"? "light" : "dark" )<CR>
+
+" F9 to toggle highlight on off
+"map <F9> :let &highlight = ( &highlight == "off"? "on" : "off" )<CR>
+
+" F12 to toggle mouse on off
+map <F12> :call ToggleMouse() <CR>
+
+" F9 to toggel word wrap on off
+map <F9> :set wrap!<CR>
+
+" Save and quit
+map <leader><F4> gg <CR> :wq <CR>
+
+" ============ Indention Options ==== ON
+set autoindent       " always set autoindenting on.  New lines inherit the indentation of previous lines.
+set smarttab         " Insert .tabstop. number of spaces when the .tab. key is pressed.
+set tabstop=4        " numbers of spaces of tab character
+set shiftwidth=4     " numbers of spaces to (auto)indent
+set smartindent      " smart indent
+set cindent          " cindent
+
+" ============ Indention Options NEW ============ [OFF]
+filetype indent on   " Enable indentation rules that are file-type specific.
+filetype plugin on   " Enable loading the plugin files for specific file types
+"set shiftround      " When shifting lines, round the indentation to the nearest multiple of .shiftwidth..
+"set expandtab       " tabs are converted to spaces, use only when required
+
+" ============ Indentation Options ============ OFF
+"set noautoindent
+"set nosmartindent
+"set nocindent
+
+" ============ Search Options ============
+set hlsearch         " highlight searches
+set ignorecase       " ignore case when searching
+set incsearch        " do incremental searching (shows partial matches)
+set smartcase        " ...unless we type a capital
+"set noignorecase    " don't ignore case
+
+" ============ Performance Options ============
+set complete=.,w,b,u,t,i        " set complete for ctags
+set lazyredraw                  " Don.t update screen during macro and script execution.
+
+" ============ Text Rendering Options ============
+set display+=lastline           " Always try to show a paragraph.s last line.
+"set encoding=utf-8             " Use an encoding that supports unicode.
+"set linebreak                  " Avoid wrapping a line in the middle of a word.
+"set nowrap                     " don't wrap lines
+"set wrap                       " Enable line wrapping.  [new]
+
+" ============ Scrolling  ============
+set scrolloff=3                 " keep 3 lines when scrolling
+"set sidescrolloff=5            " The number of screen columns to keep to the left and right of the cursor.
+
+" ============ User Interface Options ============
+"set laststatus=2               " Always display the status bar.
+set ruler                       " show the cursor position all the time
+set wildmenu                    " visual autocomplete for command menu
+set cursorline                  " Highlight the line currently under cursor
+set showmatch                   " highlight matching [{()}] show matching braces 'set sm'
+
+set matchtime=5
+set visualbell t_vb=            " turn off error beep/flash
+set novisualbell                " turn off visual bell
+"set noerrorbells               " Disable beep on errors.
+"set mouse=a                    " Enable mouse for scrolling and resizing.
+"set tabpagemax=50              " Maximum number of tab pages that can be opened from the command line.
+"set relativenumber             " Show line number on the current line and relative numbers on other lines
+
+set t_Co=256                    " for setting 256 color term
+" set t_Co=16                   " fix for bg being too bright
+
+if has("gui_running")
+    " See ~/.gvimrc
+    set guifont=Monospace\ 10   " use this font
+    set lines=50                " height = 50 lines
+    set columns=100             " width = 100 columns
+    set background=dark         " adapt colors for background
+    set selectmode=mouse,key,cmd
+    set keymodel=
+else
+    set background=dark         " adapt colors for background
+    colorscheme PlasticCodeWrap " use this color scheme
+    highlight Comment cterm=bold
+endif
+
+if &term != "builtin_gui"
+    let &titleold=substitute(system("hostname"),'\(.*\)\n','\1','')
+    set title                   " show title in console title bar
+endif
+
+let &titlestring = "--- " . hostname() . " ---" . "\ [vim (" . expand("%:p") . ")/ ]"
+if &term == "screen"
+  set t_ts=^[k
+  set t_fs=^[\
+endif
+
+if &term == "screen" || &term == "xterm" || &term == "xterm-256color"
+  set title                     " show title in console title bar
+endif
+
+" ============ Code Folding Options ============
+"set foldmethod=indent          " Fold based on indention levels.
+"set foldnestmax=3              " Only fold up to three nested levels.
+"set nofoldenable               " Disable folding by default.
+
+" ============ Miscellaneous Options ============
+"set autoread                   " Automatically re-read files if unmodified inside Vim.
+set backspace=indent,eol,start  " Allow backspacing over indention, line breaks and insertion start.
+
+" ============ Miscellaneous Options [NEW] ============
+"set confirm                    " Display a confirmation dialog when closing an unsaved file.
+"set backupdir=~/.cache/vim     " Directory to store backup files.
+"set dir=~/.cache/vim           " Directory to store swap files.
+"set formatoptions+=j           " Delete comment characters when joining lines.
+"set hidden                     " Hide files in the background instead of closing them.
+"set history=1000               " Increase the undo limit.
+"set nomodeline                 " Ignore file.s mode lines; use vimrc configurations instead.
+"set noswapfile                 " Disable swap files.
+"set nrformats-=octal           " Interpret octal as decimal when incrementing numbers.
+"set shell                      " The shell used to execute commands.
+"set spell                      " Enable spellchecking.
+"set wildignore+=.pyc,.swp      " Ignore files matching these patterns when opening files based on a glob pattern.
+
+
+" ====== AutoConfg Group ============
+augroup configgroup
+    autocmd!
+    " Remember last known cursor position
+    autocmd BufReadPost * if line("'\"") > 0 && line("'\"") <= line("$") | exe "normal! g`\"" | endif
+
+    autocmd Filetype sh set ts=4 shiftwidth=2 expandtab
+    autocmd Filetype python set ts=4 shiftwidth=4 expandtab smartindent cinwords=if,elif,else,for,while,try,except,finally,def,class,with
+    autocmd FileType c,cpp,java,php,ruby,python autocmd BufWritePre <buffer> :call <SID>StripTrailingWhitespaces()
+
+    autocmd BufNewFile,BufRead *.groovy  setf groovy
+        autocmd FileType groovy execute 'source ' . fnameescape(g:dotvim . '/syntax/groovy.vim')
+"    autocmd BufWritePre *.php,*.py,*.js,*.txt,*.hs,*.java,*.md
+"                \:call <SID>StripTrailingWhitespaces()
+augroup END
+
+augroup statline_trail
+    autocmd!
+    autocmd cursorhold,bufwritepost * unlet! b:statline_trailing_space_warning
+augroup END
+
+" ============ Functions ============
+
+
+" Toggle mouse on/off for Vim 7.4
+function! ToggleMouse()
+  if &mouse == ''
+    let &mouse = 'a'
+    echo "Mouse enabled"
+  else
+    let &mouse = ''
+    echo "Mouse disabled"
+  endif
+endfunction
+
+
+" strips trailing whitespace at the end of files. this
+" is called on buffer write in the autogroup above.
+"fun! <SID>StripTrailingWhitespaces()
+"    " save last search & cursor position
+"    let _s=@/
+"    let l = line(".")
+"    let c = col(".")
+"    %s/\s\+$//e
+"    let @/=_s
+"    call cursor(l, c)
+"endfun
+
+fun! <SID>StripTrailingWhitespaces()
+  if !&binary && &filetype != 'diff'
+    let l:save = winsaveview()
+    keeppatterns %s/\s\+$//e
+    call winrestview(l:save)
+  endif
+endfun
+
+fun! PasteForStatusline()
+    let paste_status = &paste
+    if paste_status == 1
+        return " [paste] "
+    else
+        return ""
+    endif
+endfun
+
+" check if variable bg exists at all, and return it in a safe way (for status line)
+fun! GetBG()
+ if exists("&bg")|return &bg|else|return "-"|
+ endif
+endfun
+" check is colorscheme name exists and return it
+fun! GetCN()
+ if exists("g:colors_name") | return g:colors_name | else | return "-" |
+ endif
+endfun
+
+" ============ plugins ============
+
+" SEE PLUGIN statline.vim at github
+" https://github.com/millermedeiros/vim-statline/blob/master/plugin/statline.vim
+
+" ====== Syntastic errors ====== integration is enabled by default
+
+let g:syntastic_always_populate_loc_list = 1
+let g:syntastic_auto_loc_list = 1
+let g:syntastic_check_on_open = 1
+let g:syntastic_check_on_wq = 0
+
+if !exists('g:statline_syntastic')
+    let g:statline_syntastic = 1
+endif
+if g:statline_syntastic
+    set statusline+=\ %3*%{exists('g:loaded_syntastic_plugin')?SyntasticStatuslineFlag():''}%*
+endif
+
+" ====== custom errors ======
+
+" based on @scrooloose whitespace flags
+" http://got-ravings.blogspot.com/2008/10/vim-pr0n-statusline-whitespace-flags.html
+
+
+" ====== mixed indenting ======
+
+if !exists('g:statline_mixed_indent')
+    let g:statline_mixed_indent = 1
+endif
+
+if !exists('g:statline_mixed_indent_string')
+    let g:statline_mixed_indent_string = '[mix]'
+endif
+
+"return '[&et]' if &et is set wrong
+"return '[mixed-indenting]' if spaces and tabs are used to indent
+"return an empty string if everything is fine
+function! StatlineTabWarning()
+    if !exists("b:statline_indent_warning")
+        let b:statline_indent_warning = ''
+
+        if !&modifiable
+            return b:statline_indent_warning
+        endif
+
+        let tabs = search('^\t', 'nw') != 0
+
+        "find spaces that arent used as alignment in the first indent column
+        let spaces = search('^ \{' . &ts . ',}[^\t]', 'nw') != 0
+
+        if tabs && spaces
+            let b:statline_indent_warning = g:statline_mixed_indent_string
+        elseif (spaces && !&et) || (tabs && &et)
+            let b:statline_indent_warning = '[&et]'
+        endif
+    endif
+    return b:statline_indent_warning
+endfunction
+
+if g:statline_mixed_indent
+    set statusline+=%3*%{StatlineTabWarning()}%*
+
+    " recalculate when idle and after writing
+    augroup statline_indent
+        autocmd!
+        autocmd cursorhold,bufwritepost * unlet! b:statline_indent_warning
+    augroup END
+endif
+
+" commented out [332 to 347] due to viewing attr files delay opening
+" ====== trailing white space ======
+"if !exists('g:statline_trailing_space')
+"    let g:statline_trailing_space = 1
+"endif
+
+"function! StatlineTrailingSpaceWarning()
+"    if !exists("b:statline_trailing_space_warning")
+"        if search('\s\+$', 'nw') != 0
+"            let b:statline_trailing_space_warning = '[\s]'
+"        else
+"            let b:statline_trailing_space_warning = ''
+"        endif
+"    endif
+"    return b:statline_trailing_space_warning
+"endfunction
+
+
+" update ctags:
+" ctags -f ./tags -R ./ctagsfolder/
+let &tags = 'tags,./tags;,' . g:dotvim . '/tags;' | " Search current directory for tags, then up, finally root .vim
+
+
+" Keyboard mapping for numeric keypad
+imap <Esc>OM <c-m>
+ map <Esc>OM <c-m>
+imap <Esc>OP <nop>
+ map <Esc>OP <nop>
+imap <Esc>OQ /
+ map <Esc>OQ /
+imap <Esc>OR *
+ map <Esc>OR *
+imap <Esc>OS -
+ map <Esc>OS -
+
+imap <Esc>Ol +
+imap <Esc>Om -
+imap <Esc>On ,
+imap <Esc>Op 0
+imap <Esc>Oq 1
+imap <Esc>Or 2
+imap <Esc>Os 3
+imap <Esc>Ot 4
+imap <Esc>Ou 5
+imap <Esc>Ov 6
+imap <Esc>Ow 7
+imap <Esc>Ox 8
+imap <Esc>Oy 9
+imap <Esc>Oz 0
+
+
+
+"set statusline+=%{SyntasticStatuslineFlag()}  " Syntastic error flag
+"BROKEN IN VIM72"
+"if g:statline_trailing_space
+"    set statusline+=%3*%{StatlineTrailingSpaceWarning()}%*
+"
+"    " recalculate when idle, and after saving
+"    augroup statline_trail
+"        autocmd!
+"        autocmd cursorhold,bufwritepost * unlet! b:statline_trailing_space_warning
+"    augroup END
+"endif
+"
+"
+"  END .vimrc
+
+
+
+==============================================================
+
+
+~/ADAM/cust-bash-shell/.vim] ll
+total 68
+drwxr-xr-x 9 abrandeis Domain Users  4096 Mar  2 17:22 ./
+drwxr-xr-x 5 abrandeis Domain Users  4096 Mar  2 17:22 ../
+drwxr-xr-x 2 abrandeis Domain Users  4096 Feb  3 14:35 autoload/
+drwxr-xr-x 2 abrandeis Domain Users  4096 Feb  3 14:22 autorun/
+drwxr-xr-x 5 abrandeis Domain Users  4096 Feb  3 15:58 .cache/
+drwxr-xr-x 2 abrandeis Domain Users  4096 Feb 19 11:14 colors/
+drwxr-xr-x 2 abrandeis Domain Users  4096 Feb  3 14:38 plugin/
+drwxr-xr-x 2 abrandeis Domain Users  4096 Jan  8 16:47 plugins/
+drwxr-xr-x 2 abrandeis Domain Users  4096 Feb  3 15:49 syntax/
+-rw-r--r-- 1 abrandeis Domain Users   110 Jan 14 10:19 .netrwhist
+-rw-r--r-- 1 abrandeis Domain Users  4554 Mar  2 17:22 .viminfo
+-rw-r--r-- 1 abrandeis Domain Users 16632 Feb 11 14:41 .vimrc
+
+
+~/ADAM/cust-bash-shell/.vim] ll autoload/
+total 28
+drwxr-xr-x 2 abrandeis Domain Users 4096 Feb  3 14:35 ./
+drwxr-xr-x 9 abrandeis Domain Users 4096 Mar  2 17:22 ../
+-rw-r--r-- 1 abrandeis Domain Users 8720 Jan  8 13:30 pathogen.vim
+-rw-r--r-- 1 abrandeis Domain Users 1374 Feb  3 14:03 syntax.vim
+-rw-r--r-- 1 abrandeis Domain Users 2584 Feb  3 14:34 tarPlugin.vim
+
+
+~/ADAM/cust-bash-shell/.vim] ll autorun/
+total 12
+drwxr-xr-x 2 abrandeis Domain Users 4096 Feb  3 14:22 ./
+drwxr-xr-x 9 abrandeis Domain Users 4096 Mar  2 17:22 ../
+-rw-r--r-- 1 abrandeis Domain Users 1374 Feb  3 14:03 syntax.vim
+
+~/ADAM/cust-bash-shell/.vim] ll colors/
+total 20
+drwxr-xr-x 2 abrandeis Domain Users 4096 Feb 19 11:14 ./
+drwxr-xr-x 9 abrandeis Domain Users 4096 Mar  2 17:22 ../
+-rw-r--r-- 1 abrandeis Domain Users 9726 Feb  3 13:36 PlasticCodeWrap.vim
+
+~/ADAM/cust-bash-shell/.vim] ll plugin
+total 12
+drwxr-xr-x 2 abrandeis Domain Users 4096 Feb  3 14:38 ./
+drwxr-xr-x 9 abrandeis Domain Users 4096 Mar  2 17:22 ../
+-rw-r--r-- 1 abrandeis Domain Users 2584 Feb  3 14:34 tarPlugin.vim
+
+~/ADAM/cust-bash-shell/.vim] ll syntax/
+total 88
+drwxr-xr-x 2 abrandeis Domain Users  4096 Feb  3 15:49 ./
+drwxr-xr-x 9 abrandeis Domain Users  4096 Mar  2 17:22 ../
+-rw-r--r-- 1 abrandeis Domain Users 22880 Aug  8  2019 groovy.vim
+-rw-r--r-- 1 abrandeis Domain Users 11886 Aug  8  2019 python.vim
+-rw-r--r-- 1 abrandeis Domain Users 39061 Aug  8  2019 sh.vim
+-rw-r--r-- 1 abrandeis Domain Users  1228 Aug  8  2019 syntax.vim
+
+=========================================
+
+~/ADAM/cust-bash-shell/.vim] cat colors/PlasticCodeWrap.vim
+" Vim color file
+" Ported by Joe DF
+" Converted from Textmate theme PlasticCodeWrap using Coloration v0.3.3 (http://github.com/sickill/coloration)
+
+set background=dark
+highlight clear
+
+" (Optional) comment out GUI font so terminals don't try to deal with it
+" set guifont=DejaVu\ Sans\ Mono:h10
+" Added line Font Setting
+set guifont=DejaVu\ Sans\ Mono:h10
+" this one could used instead...
+" set guifont=Consolas:h10
+
+if exists("syntax_on")
+  syntax reset
+endif
+
+let g:colors_name = "PlasticCodeWrap"
+
+" STATUSLINE
+hi StatusLine ctermfg=231 ctermbg=59 cterm=bold guifg=#f8f8f8 guibg=#50585d gui=bold
+hi StatusLineNC ctermfg=231 ctermbg=59 cterm=NONE guifg=#f8f8f8 guibg=#50585d gui=NONE
+""hi NormalColor guifg=Black guibg=Green ctermbg=46 ctermfg=0
+""hi InsertColor guifg=Black guibg=Cyan ctermbg=51 ctermfg=0
+""hi ReplaceColor guifg=Black guibg=maroon1 ctermbg=165 ctermfg=0
+""hi VisualColor guifg=Black guibg=Orange ctermbg=202 ctermfg=0
+""hi ROColor guifg=Black guibg=Orange ctermbg=202 ctermfg=0
+"hi User1 ctermfg=59 ctermbg= cterm=NONE guifg=#50585d guibg=#50585d gui=NONE
+
+" New- guard GUI hex behind termguicolors; keep 256-color fallbacks identical
+if has('termguicolors')
+  " Hex approximations that align with your chosen cterm indices
+  hi ReplaceColor guifg=#000000 guibg=#d75f87 ctermfg=0 ctermbg=165
+  hi VisualColor  guifg=#000000 guibg=#ff5f00 ctermfg=0 ctermbg=202
+  hi ROColor      guifg=#000000 guibg=#ff5f00 ctermfg=0 ctermbg=202
+else
+  hi ReplaceColor ctermfg=0 ctermbg=165
+  hi VisualColor  ctermfg=0 ctermbg=202
+  hi ROColor      ctermfg=0 ctermbg=202
+endif
+
+if has('termguicolors')
+  hi NormalColor  guifg=#000000 guibg=#00d700 ctermfg=0 ctermbg=46
+  hi InsertColor  guifg=#000000 guibg=#00d7ff ctermfg=0 ctermbg=45
+else
+  hi NormalColor  ctermfg=0 ctermbg=46
+  hi InsertColor  ctermfg=0 ctermbg=45
+endif
+
+
+
+hi Cursor ctermfg=16 ctermbg=109 cterm=NONE guifg=#0b161d guibg=#8ba7a7 gui=NONE
+hi Visual ctermfg=NONE ctermbg=66 cterm=NONE guifg=NONE guibg=#687b83 gui=NONE
+hi CursorLine ctermfg=NONE ctermbg=17 cterm=NONE guifg=NONE guibg=#232d33 gui=NONE
+hi CursorColumn ctermfg=NONE ctermbg=17 cterm=NONE guifg=NONE guibg=#232d33 gui=NONE
+hi ColorColumn ctermfg=NONE ctermbg=17 cterm=NONE guifg=NONE guibg=#232d33 gui=NONE
+hi LineNr ctermfg=102 ctermbg=17 cterm=NONE guifg=#82878b guibg=#232d33 gui=NONE
+hi VertSplit ctermfg=59 ctermbg=59 cterm=NONE guifg=#50585d guibg=#50585d gui=NONE
+hi MatchParen ctermfg=214 ctermbg=NONE cterm=underline guifg=#ffaa00 guibg=NONE gui=underline
+hi Pmenu ctermfg=220 ctermbg=NONE cterm=bold guifg=#efe900 guibg=NONE gui=bold
+hi PmenuSel ctermfg=NONE ctermbg=66 cterm=NONE guifg=NONE guibg=#687b83 gui=NONE
+hi IncSearch ctermfg=16 ctermbg=77 cterm=NONE guifg=#0b161d guibg=#55e439 gui=NONE
+hi Search ctermfg=0 ctermbg=123 cterm=underline guifg=NONE guibg=NONE gui=underline
+hi Directory ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+hi Folded ctermfg=32 ctermbg=16 cterm=NONE guifg=#1e9ae0 guibg=#0b161d gui=NONE
+
+hi Normal ctermfg=231 ctermbg=16 cterm=NONE guifg=#f8f8f8 guibg=#0b161d gui=NONE
+hi Boolean ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+hi Character ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+hi Comment ctermfg=32 ctermbg=NONE cterm=NONE guifg=#1e9ae0 guibg=NONE gui=italic
+hi Conditional ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi Constant ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+hi Define ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi DiffAdd ctermfg=231 ctermbg=64 cterm=bold guifg=#f8f8f8 guibg=#41800b gui=bold
+hi DiffDelete ctermfg=88 ctermbg=NONE cterm=NONE guifg=#850406 guibg=NONE gui=NONE
+hi DiffChange ctermfg=231 ctermbg=23 cterm=NONE guifg=#f8f8f8 guibg=#163052 gui=NONE
+hi DiffText ctermfg=231 ctermbg=24 cterm=bold guifg=#f8f8f8 guibg=#204a87 gui=bold
+hi ErrorMsg ctermfg=231 ctermbg=124 cterm=NONE guifg=#f8f8f8 guibg=#a32411 gui=NONE
+hi WarningMsg ctermfg=231 ctermbg=124 cterm=NONE guifg=#f8f8f8 guibg=#a32411 gui=NONE
+hi Float ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+hi Function ctermfg=220 ctermbg=NONE cterm=bold guifg=#efe900 guibg=NONE gui=bold
+hi Identifier ctermfg=228 ctermbg=NONE cterm=NONE guifg=#f6f080 guibg=NONE gui=NONE
+hi Keyword ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi Label ctermfg=77 ctermbg=NONE cterm=NONE guifg=#55e439 guibg=NONE gui=NONE
+hi NonText ctermfg=59 ctermbg=16 cterm=NONE guifg=#485056 guibg=#172128 gui=NONE
+hi Number ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+hi Operator ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi PreProc ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi Special ctermfg=231 ctermbg=NONE cterm=NONE guifg=#f8f8f8 guibg=NONE gui=NONE
+hi SpecialKey ctermfg=59 ctermbg=17 cterm=NONE guifg=#485056 guibg=#232d33 gui=NONE
+hi Statement ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi StorageClass ctermfg=228 ctermbg=NONE cterm=NONE guifg=#f6f080 guibg=NONE gui=NONE
+hi String ctermfg=77 ctermbg=NONE cterm=NONE guifg=#55e439 guibg=NONE gui=NONE
+hi Tag ctermfg=220 ctermbg=NONE cterm=bold guifg=#efe900 guibg=NONE gui=bold
+hi Title ctermfg=231 ctermbg=NONE cterm=bold guifg=#f8f8f8 guibg=NONE gui=bold
+hi Todo ctermfg=32 ctermbg=NONE cterm=inverse,bold guifg=#1e9ae0 guibg=NONE gui=inverse,bold,italic
+hi Type ctermfg=220 ctermbg=NONE cterm=bold guifg=#efe900 guibg=NONE gui=bold
+hi Underlined ctermfg=NONE ctermbg=NONE cterm=underline guifg=NONE guibg=NONE gui=underline
+
+"" RUBY
+hi rubyClass ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi rubyFunction ctermfg=220 ctermbg=NONE cterm=bold guifg=#efe900 guibg=NONE gui=bold
+hi rubyInterpolationDelimiter ctermfg=NONE ctermbg=NONE cterm=NONE guifg=NONE guibg=NONE gui=NONE
+hi rubySymbol ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+hi rubyConstant ctermfg=157 ctermbg=NONE cterm=NONE guifg=#9df39f guibg=NONE gui=NONE
+hi rubyStringDelimiter ctermfg=77 ctermbg=NONE cterm=NONE guifg=#55e439 guibg=NONE gui=NONE
+hi rubyBlockParameter ctermfg=209 ctermbg=NONE cterm=NONE guifg=#fb9a4b guibg=NONE gui=NONE
+hi rubyInstanceVariable ctermfg=209 ctermbg=NONE cterm=NONE guifg=#fb9a4b guibg=NONE gui=NONE
+hi rubyInclude ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi rubyGlobalVariable ctermfg=209 ctermbg=NONE cterm=NONE guifg=#fb9a4b guibg=NONE gui=NONE
+hi rubyRegexp ctermfg=215 ctermbg=NONE cterm=NONE guifg=#ffb454 guibg=NONE gui=NONE
+hi rubyRegexpDelimiter ctermfg=215 ctermbg=NONE cterm=NONE guifg=#ffb454 guibg=NONE gui=NONE
+hi rubyEscape ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+hi rubyControl ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi rubyClassVariable ctermfg=209 ctermbg=NONE cterm=NONE guifg=#fb9a4b guibg=NONE gui=NONE
+hi rubyOperator ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi rubyException ctermfg=214 ctermbg=NONE cterm=bold guifg=#ffaa00 guibg=NONE gui=bold
+hi rubyPseudoVariable ctermfg=209 ctermbg=NONE cterm=NONE guifg=#fb9a4b guibg=NONE gui=NONE
+hi rubyRailsUserClass ctermfg=157 ctermbg=NONE cterm=NONE guifg=#9df39f guibg=NONE gui=NONE
+hi rubyRailsARAssociationMethod ctermfg=215 ctermbg=NONE cterm=NONE guifg=#ffb454 guibg=NONE gui=NONE
+hi rubyRailsARMethod ctermfg=215 ctermbg=NONE cterm=NONE guifg=#ffb454 guibg=NONE gui=NONE
+hi rubyRailsRenderMethod ctermfg=215 ctermbg=NONE cterm=NONE guifg=#ffb454 guibg=NONE gui=NONE
+hi rubyRailsMethod ctermfg=215 ctermbg=NONE cterm=NONE guifg=#ffb454 guibg=NONE gui=NONE
+hi erubyDelimiter ctermfg=NONE ctermbg=NONE cterm=NONE guifg=NONE guibg=NONE gui=NONE
+hi erubyComment ctermfg=32 ctermbg=NONE cterm=NONE guifg=#1e9ae0 guibg=NONE gui=italic
+hi erubyRailsMethod ctermfg=215 ctermbg=NONE cterm=NONE guifg=#ffb454 guibg=NONE gui=NONE
+
+"" HTML
+hi htmlTag ctermfg=159 ctermbg=NONE cterm=NONE guifg=#9effff guibg=NONE gui=NONE
+hi htmlEndTag ctermfg=159 ctermbg=NONE cterm=NONE guifg=#9effff guibg=NONE gui=NONE
+hi htmlTagName ctermfg=159 ctermbg=NONE cterm=NONE guifg=#9effff guibg=NONE gui=NONE
+hi htmlArg ctermfg=159 ctermbg=NONE cterm=NONE guifg=#9effff guibg=NONE gui=NONE
+hi htmlSpecialChar ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+
+"" JAVA
+hi javaScriptFunction ctermfg=228 ctermbg=NONE cterm=NONE guifg=#f6f080 guibg=NONE gui=NONE
+hi javaScriptRailsFunction ctermfg=215 ctermbg=NONE cterm=NONE guifg=#ffb454 guibg=NONE gui=NONE
+hi javaScriptBraces ctermfg=NONE ctermbg=NONE cterm=NONE guifg=NONE guibg=NONE gui=NONE
+
+"" YAML
+hi yamlKey ctermfg=220 ctermbg=NONE cterm=bold guifg=#efe900 guibg=NONE gui=bold
+hi yamlAnchor ctermfg=209 ctermbg=NONE cterm=NONE guifg=#fb9a4b guibg=NONE gui=NONE
+hi yamlAlias ctermfg=209 ctermbg=NONE cterm=NONE guifg=#fb9a4b guibg=NONE gui=NONE
+hi yamlDocumentHeader ctermfg=77 ctermbg=NONE cterm=NONE guifg=#55e439 guibg=NONE gui=NONE
+
+"" CSS
+hi cssURL ctermfg=209 ctermbg=NONE cterm=NONE guifg=#fb9a4b guibg=NONE gui=NONE
+hi cssFunctionName ctermfg=215 ctermbg=NONE cterm=NONE guifg=#ffb454 guibg=NONE gui=NONE
+hi cssColor ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+hi cssPseudoClassId ctermfg=220 ctermbg=NONE cterm=bold guifg=#efe900 guibg=NONE gui=bold
+hi cssClassName ctermfg=220 ctermbg=NONE cterm=bold guifg=#efe900 guibg=NONE gui=bold
+hi cssValueLength ctermfg=204 ctermbg=NONE cterm=NONE guifg=#ff3a83 guibg=NONE gui=NONE
+hi cssCommonAttr ctermfg=174 ctermbg=NONE cterm=NONE guifg=#eb939a guibg=NONE gui=NONE
+hi cssBraces ctermfg=NONE ctermbg=NONE cterm=NONE guifg=NONE guibg=NONE gui=NONE
+
+
+
+
