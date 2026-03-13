@@ -15,20 +15,80 @@
 # - Any Use% > threshold in red (default 75)
 # - Blank line, then a TOTAL line in yellow
 # Usage:
-#   dfc          # threshold = 75
-#   dfc 85       # threshold = 85
+#   dfc            # threshold = 75
+#   dfc 85         # threshold = 85
+#   dfc -h | --help
+
 dfc() {
+  # --- ANSI colors (used in output and help) ---
+  local CYAN=$'\033[1;36m'
+  local RED=$'\033[1;36m'
+#  CYAN='\e[1;36m'
+#  RED='\e[1;36m'
+  local YELLOW=$'\033[1;33m'
+  local RESET=$'\033[0m'
+
+  # --- Help / Usage text (with colors) ---
+  usage() {
+    cat <<EOF
+${CYAN}dfc${RESET}
+
+${YELLOW}Usage:${RESET}
+  ${CYAN}dfc${RESET} [THRESHOLD]
+  ${CYAN}dfc${RESET} -h | --help
+
+${YELLOW}Description:${RESET}
+  Show human-readable disk usage with colors:
+    - Header in cyan
+    - Any Use% > THRESHOLD in red (default 75)
+    - Blank line, then a TOTAL line in yellow
+
+${YELLOW}Arguments:${RESET}
+  THRESHOLD        Integer 0–100. Example: ${CYAN}dfc${RESET} 85
+
+${YELLOW}Options:${RESET}
+  -h, --help       Show this help and return
+
+${YELLOW}Examples:${RESET}
+  ${CYAN}dfc${RESET}              # uses default threshold 75
+  ${CYAN}dfc${RESET} 90           # flags mounts >90% in red
+EOF
+  }
+
+  # --- Parse options (-h/--help); allow optional single positional threshold ---
+  local OPTIND=1 opt
+  while getopts ":h" opt; do
+    case "$opt" in
+      h) usage; return 0 ;;
+      \?) printf "%sdfc:%s Unknown option -%s\n" "$RED" "$RESET" "$OPTARG" >&2; usage >&2; return 2 ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  # Support --help (getopts doesn't handle long options)
+  if [[ "${1:-}" == "--help" ]]; then
+    usage
+    return 0
+  fi
+
+  # --- Determine threshold (default 75); validate 0–100 integer ---
   local threshold="${1:-75}"
+  if [[ $# -gt 1 ]]; then
+    printf "%sdfc:%s Too many arguments.\n" "$RED" "$RESET" >&2
+    usage >&2
+    return 2
+  fi
+  if ! [[ "$threshold" =~ ^[0-9]+$ ]] || (( threshold < 0 || threshold > 100 )); then
+    printf "%sdfc:%s THRESHOLD must be an integer between 0 and 100 (got: '%s').\n" "$RED" "$RESET" "$threshold" >&2
+    usage >&2
+    return 2
+  fi
 
-  # ANSI colors
-  local CYAN="\033[36m"
-  local RED="\033[31m"
-  local YELLOW="\033[33m"
-  local RESET="\033[0m"
-
-  # Prefer POSIX columns to avoid wrapping (GNU); fallback for BSD/macOS
+  # --- Prefer POSIX columns to avoid wrapping (GNU); fallback for BSD/macOS ---
   local df_h_cmd="df -hP"
-  $df_h_cmd >/dev/null 2>&1 || df_h_cmd="df -h"
+  if ! eval "$df_h_cmd" >/dev/null 2>&1; then
+    df_h_cmd="df -h"
+  fi
 
   # 1) Main table with coloring
   eval "$df_h_cmd" | awk -v th="$threshold" -v cyan="$CYAN" -v red="$RED" -v reset="$RESET" '
@@ -64,25 +124,21 @@ dfc() {
     '
   else
     # Portable path: compute totals in KiB, then pretty-print in human units.
-    # Use -kP for 1K-blocks with POSIX layout where possible.
     local df_k_cmd="df -kP"
-    $df_k_cmd >/dev/null 2>&1 || df_k_cmd="df -k"
+    if ! eval "$df_k_cmd" >/dev/null 2>&1; then
+      df_k_cmd="df -k"
+    fi
 
     eval "$df_k_cmd" | awk -v yellow="$YELLOW" -v reset="$RESET" '
       BEGIN {
         total=0; used=0; avail=0
       }
-      NR==1 { header=$0; next }
+      NR==1 { next }
       {
         # POSIX df -kP columns: Filesystem 1024-blocks Used Available Capacity Mounted on
-        # Try to detect numeric fields dynamically:
-        # Gather numeric fields in order of appearance
+        # Detect numeric fields dynamically:
         nums=0
-        for (i=1;i<=NF;i++) {
-          if ($i ~ /^[0-9]+$/) {
-            vals[++nums]=$i+0
-          }
-        }
+        for (i=1;i<=NF;i++) if ($i ~ /^[0-9]+$/) vals[++nums]=$i+0
         if (nums >= 3) {
           total += vals[1]
           used  += vals[2]
@@ -90,12 +146,11 @@ dfc() {
         }
       }
       # Humanize KiB values
-      function human1k(k,  u) {
-        u="K"; val=k
+      function human1k(k,  u, val) {
+        u="K"; val=k+0
         if (val>=1024) { val/=1024; u="M" }
         if (val>=1024) { val/=1024; u="G" }
         if (val>=1024) { val/=1024; u="T" }
-        # Show one decimal for non-integers
         if (val>=10) printf "%.0f%s", val, u
         else printf "%.1f%s", val, u
       }
@@ -103,12 +158,12 @@ dfc() {
         cap = (total>0 ? int((used*100)/total+0.5) : 0)
         # Reconstruct a line similar to df -h output:
         # Filesystem      Size  Used Avail Use% Mounted on
-        # We print label "total" and a synthetic mountpoint "-"
         printf yellow "%-20s %6s %6s %6s %3d%% %s\n" reset, \
           "total", human1k(total), human1k(used), human1k(avail), cap, "-"
       }
     '
   fi
 }      ##### FUNCTION END : dfc
-``
+
+
 
