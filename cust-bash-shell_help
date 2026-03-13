@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     cust-bash-shell_help
+# Created:      2026-01-08
+# Purpose:      enter a directory and list contents
+# ============================================
+
+########################
+## [Function cust-bash-shell_help] #
+
+cust-bash-shell_help() {
+#  if [[ $1 == '-h' ]]; then
+    echo -e " "
+    echo -e " ${C_YW}This is the help info for prompt and profile${C_NC} ${C_CY}cust-bash ${C_NC}"
+    echo -e " ${C_YW}cust-bash-shell_help is a profile written to assist, improve and speed up troubleshooting and general Unix tasks or commands.${C_NC}"
+    echo -e " "
+    echo -e "                   ${C_GN}FUNCTIONS INCLUDE:${C_NC}"
+    echo -e "                   ${C_RD}==================${C_NC}"
+    echo -e "      ${C_CY}which${C_NC} - ${C_YW}improves the which command in Unix to give a user more information and details \n         about a command, function, alias or built-in command. ${C_NC}"
+    echo -e "      ${C_CY}lcd${C_NC} - ${C_YW}'cd' into a directory and 'list' the contents in a single command.  Type 'lcd -h' to see usage. ${C_NC}"
+    echo -e "      ${C_CY}cpy${C_NC} - ${C_YW}copy and backup a file using a single command and the filename.  Type 'cpy' to see usage.  ${C_NC}"
+    echo -e "      ${C_CY}dfc ${C_NC} - ${C_YW}show a better human-readable disk usage with colors Type 'dfc -h' to see usage.${C_NC}"
+    echo -e "      ${C_CY}lsc${C_NC} - ${C_YW}TBD ${C_NC}"
+    echo -e "      ${C_CY}topfiles${C_NC} - ${C_YW}TBD ${C_NC}"
+    echo -e "      ${C_CY}du. (du_better)${C_NC} - ${C_YW}TBD ${C_NC}"
+}      ##### FUNCTION END : cust-bash-shell_help
+
