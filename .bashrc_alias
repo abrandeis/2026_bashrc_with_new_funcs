@@ -1,0 +1,145 @@
+# .bashrc_alias
+
+# ============================================
+# Author:       Adam Brandeis
+# Filename:     .bashrc_alias
+# Created:      2026-01-08
+# Purpose:      Custom alias list and useful aliases
+# ============================================
+
+# Resolve the directory containing the current file
+# Works even when sourced, symlinked, etc.
+_brc_src="${BASH_SOURCE[0]}"
+while [ -h "$_brc_src" ]; do
+  _brc_dir="$(cd -P "$(dirname "$_brc_src")" && pwd)"
+  _brc_src="$(readlink "$_brc_src")"
+  [[ $_brc_src != /* ]] && _brc_src="$_brc_dir/$_brc_src"
+done
+_brc_dir="$(cd -P "$(dirname "$_brc_src")" && pwd)"
+
+# If this file is in the repo root:
+export BASHRC_HOME="$_brc_dir"
+
+# If this file is in a subfolder, e.g., repo/scripts/.bashrc_cust:
+# export BASHRC_HOME="$(cd "$_brc_dir/.." && pwd)"
+
+# ----- Aliases: extra -----
+alias crongrep="crontab -l | grep"
+
+
+## ====================== ##
+## ===== Alias List ===== ##
+
+## ===== Bash List =====
+alias newsource="source ~/.bashrc; source ${BASHRC_HOME}/.bashrc_cust"
+
+# ----- rsync - cust-bash-shell -----
+alias sLl_bash="rsync -avzh -e ssh --update --delete --progress ${BASHRC_HOME}"
+alias sLdr_bash="rsync -avzh -e ssh --update --delete --progress --dry-run ${BASHRC_HOME}"
+
+## ----- vi -----
+alias vim="vim -u ${BASHRC_HOME}/.vim/.vimrc"
+alias vi="vim -u ${BASHRC_HOME}/.vim/.vimrc"
+
+# ----- Quick editors (adjust to your preference) -----
+if command -v vim >/dev/null 2>&1; then
+  alias v='vim'
+elif command -v nvim >/dev/null 2>&1; then
+  alias v='nvim'
+else
+  alias v='vi'
+fi
+
+# ----- Aliases: grep -----
+alias grep="grep --color=auto"
+alias cgrep="grep --color=always"
+alias egrep='egrep --color=always'
+alias fgrep='fgrep --color=always'
+alias igrep='grep --color=always -i'  # ignore case grep
+
+alias psefg="ps -ef | grep -v 'grep' | grep $1"
+
+
+# ----- Aliases: core -----
+alias cls="printf '\e[H\e[2J'"
+alias ls='ls --color=auto'
+alias ll='ls -alF --group-directories-first'
+alias la='ls -A'
+alias l='ls -CF'
+alias goal='ls -goal --color=always'
+alias lsl='ls -latr'
+alias hist="history"
+alias hcg="history | cgrep"
+alias ag="alias | cgrep"
+alias cg="crontab -l | cgrep"
+
+# ----- Sudo convenience -----
+alias please='sudo'
+alias sudoe='sudo -E'
+
+# ----- Shortcuts -----
+alias reload='source ~/.bashrc'
+alias openports='sudo lsof -i -P -n | grep LISTEN'
+
+# ----- Navigation helpers  -----
+alias cd..='cd ..'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias ~='cd ~'
+alias -- -='cd -'
+
+# ----- Safer operations  -----
+alias cp='cp -i'
+alias mv='mv -i'
+alias rm='rm -i'
+
+# ----- System info -----
+alias df='df -h'
+alias du='du -h'
+alias free='free -h'
+alias psu='ps aux --sort=-%mem | head -n 15'
+alias pscpu='ps aux --sort=-%cpu | head -n 15'
+
+# Networking
+alias ip4='ip -4 addr'
+alias ip6='ip -6 addr'
+alias ipr='ip route'
+alias ports='ss -tulpen'
+
+# Process helpers
+alias myproc='pgrep -fl'
+alias kill9='xargs -r kill -9'
+
+# Git shortcuts
+#alias gs='git status'
+#alias ga='git add -A'
+#alias gc='git commit -m'
+#alias gca='git commit --amend --no-edit'
+#alias gco='git checkout'
+#alias gb='git branch'
+#alias gd='git diff'
+#alias gl='git log --oneline --graph --decorate --all'
+#alias gp='git pull --rebase --autostash'
+#alias gP='git push'
+
+# Docker (only if present)
+if command -v docker >/dev/null 2>&1; then
+  alias dps='docker ps'
+  alias dpa='docker ps -a'
+  alias di='docker images'
+  alias dlogs='docker logs -f'
+  alias drm='docker rm'
+  alias drmi='docker rmi'
+fi
+
+# Kubernetes (only if present)
+if command -v kubectl >/dev/null 2>&1; then
+  alias k='kubectl'
+  alias kgp='kubectl get pods'
+  alias kgs='kubectl get svc'
+  alias kgn='kubectl get nodes'
+  alias kctx='kubectl config current-context'
+fi
+
+
