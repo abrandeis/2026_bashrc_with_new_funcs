@@ -9,7 +9,6 @@
 # ============================================
 
 
-
 # Resolve the directory containing the current file
 # Works even when sourced, symlinked, etc.
 _brc_src="${BASH_SOURCE[0]}"
