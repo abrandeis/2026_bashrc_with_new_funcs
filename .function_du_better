@@ -9,6 +9,7 @@
 # ============================================
 
 
+
 ########################
 ##  [Function du_better - du.] #
 alias du.="du_better"
@@ -58,5 +59,4 @@ du_better() {
   total="$(du -shx -- "$dir" 2>/dev/null | awk '{print $1}')"
   printf "%s%10s  %s%s\n" "$yellow" "${total:-0}" "TOTAL" "$reset"
 }      ##### FUNCTION END : du_better
-
 
