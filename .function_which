@@ -27,15 +27,20 @@ fi
 which() {
 ## Written by Adam Brandeis - 2019-11-11
   if [[ -z $1 ]]; then
-    echo -e "   ${C_GN} This finds the location of Functions and/or Alias, Builtin, File or Keyword ${C_NC}"
-    echo -e "   ${C_GN} Usage: which <alias or funciton name or file or builtin or keyword>  ${C_NC}"
-    echo -e "   ${C_GN} Usage: which <alias or function name or keyword, etc> ${C_NC}"
-    echo -e "   ${C_GN} e.g.: which ll     ${C_NC}"    ## Example Alias
-    echo -e "   ${C_GN} e.g.: which cpy    ${C_NC}"    ## Example Function
-    echo -e "   ${C_GN} e.g.: which lcd    ${C_NC}"    ## Example Function
-    echo -e "   ${C_GN} e.g.: which for    ${C_NC}"    ## Example keyword
-    echo -e "   ${C_GN} e.g.: which awk    ${C_NC}"    ## Example file
-
+    echo -e " "
+    echo -e "${C_CY}which${C_NC}"
+    echo -e "   ${C_YW} This finds the location of Functions and/or Alias, Builtin, File or Keyword ${C_NC}"
+    echo -e " "
+    echo -e "   ${C_GN} Usage: ${C_NC}"
+    echo -e "   ${C_CY} which ${C_NC}<alias or funciton name or file or builtin or keyword>  ${C_NC}"
+    echo -e " "
+    echo -e "   ${C_YW} Examples: ${C_NC}"
+    echo -e "    ========="
+    echo -e "      ${C_GN}which ll     ${C_NC}"    ## Example Alias
+    echo -e "      ${C_GN}which cpy    ${C_NC}"    ## Example Function
+    echo -e "      ${C_GN}which lcd    ${C_NC}"    ## Example Function
+    echo -e "      ${C_GN}which for    ${C_NC}"    ## Example keyword
+    echo -e "      ${C_GN}which awk    ${C_NC}"    ## Example file
 
   elif [[ $(type -t $1) =~ (alias|function|builtin|file|keyword)$ ]]; then
     echo -e " "
@@ -43,6 +48,9 @@ which() {
 
     if [[ $(type -t $1) == "alias" ]]; then
       type -a $1
+      echo " "
+      echo -e "${C_GN}$1 is located in :${C_YW}" ${C_NC}
+      grep -Rn --color=always -E '^[[:space:]]*alias[[:space:]]+' ${BASHRC_HOME} ~/.*bash* ~/.profile /etc/{bash.bashrc,bashrc,profile,profile.d} 2>/dev/null | grep $1 | grep -v /*.bak | grep -v ${HOME}/.bash_history
 
     elif [[ $(type -t $1) == "function" ]]; then
       shopt -s extdebug
