@@ -8,7 +8,23 @@
 # Functions list: histdel, dfc, du., topfiles,
 # ============================================
 
-BASHRC_HOME="${HOME}/.BGCbash"
+
+
+# Resolve the directory containing the current file
+# Works even when sourced, symlinked, etc.
+_brc_src="${BASH_SOURCE[0]}"
+while [ -h "$_brc_src" ]; do
+  _brc_dir="$(cd -P "$(dirname "$_brc_src")" && pwd)"
+  _brc_src="$(readlink "$_brc_src")"
+  [[ $_brc_src != /* ]] && _brc_src="$_brc_dir/$_brc_src"
+done
+_brc_dir="$(cd -P "$(dirname "$_brc_src")" && pwd)"
+
+# If this file is in the repo root:
+export BASHRC_HOME="$_brc_dir"
+
+# If this file is in a subfolder, e.g., repo/scripts/.bashrc_cust:
+# export BASHRC_HOME="$(cd "$_brc_dir/.." && pwd)"
 
 ## ===== Functions Source List =====
 ## Source Function which
@@ -46,15 +62,54 @@ if [ -f ${BASHRC_HOME}/.function_du_better ]; then
   source ${BASHRC_HOME}/.function_du_better
 fi
 
+## Source Function cust-bash-shell_help Info
+if [ -f ${BASHRC_HOME}/cust-bash-shell_help ]; then
+  source ${BASHRC_HOME}/cust-bash-shell_help
+fi
 
-
+# Always source the prod loader; it decides whether to activate based on FQDN.
+if [ -r "${HOME}/ADAM/cust-bash-shell/prod/functions_prod_source" ]; then
+  # shellcheck source=/dev/null
+  . "${HOME}/ADAM/cust-bash-shell/prod/functions_prod_source"
+fi
 
 #####   ADDITIONAL FUNCTIONS   #####
+
+# --- Smart Vim launcher: uses config based on detected major version ---
+# Depends on BASHRC_HOME being set to your root (e.g., ~/cust-bash-shell)
+bvi() {
+  # Grab "7" or "8" from: Vim - Vi IMproved X.Y (...
+  local major
+  major="$(vim --version 2>/dev/null | awk 'NR==1{print $5}' | cut -d. -f1)"
+
+  # Build the shared -u argument (your custom vimrc)
+  local uarg="-u ${BASHRC_HOME}/.vim/.vimrc"
+
+  case "$major" in
+    7)
+      # Vim 7.x → use 'vim'
+      command vim ${uarg} "$@"
+      ;;
+    8)
+      # Vim 8.x → use explicit /usr/bin/vi (as requested)
+      /usr/bin/vim ${uarg} "$@"
+      ;;
+    *)
+      # Fallbacks & helpful messaging
+      if command -v /usr/bin/vim >/dev/null 2>&1; then
+        echo "WARN: Unknown Vim major version (${major:-unknown}); falling back to /usr/bin/vi." >&2
+        /usr/bin/vim ${uarg} "$@"
+      else
+        echo "ERROR: Could not determine Vim version and /usr/bin/vi not found." >&2
+        return 127
+      fi
+      ;;
+  esac
+}
 
 ##### ── Helper: delete previous command from history ────────────────────
 ##  [History clean up last line delete] #
 ##  [Function histdel] #
-
 histdel() {
   if [ -f "$HISTFILE" ]; then
     # use sed to delete last 2 lines in place
@@ -69,5 +124,21 @@ histdel() {
   else
     echo "error: hist file not found."
   fi
+}
+
+
+# Reusable Bash function (crongrep)
+# Case-insensitive variant:
+# Search for a word and print from the header # above to the next # below
+function crongrep() {
+  local pat="$1"
+  crontab -l | awk -v IGNORECASE=1 -v pat="$pat" '
+    /^#/ {
+      if (inblk && hit) print blk
+      blk = $0 ORS; inblk = 1; hit = 0; next
+    }
+    { inblk = 1; blk = blk $0 ORS; if ($0 ~ pat) hit = 1 }
+    END { if (inblk && hit) print blk }
+  '
 }
 
