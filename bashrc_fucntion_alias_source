@@ -1,0 +1,47 @@
+#!/bin/bash .bashrc - to add
+
+### THE BELOW IS TO BE ADDED TO A .bashrc FILE TO SETUP THE ALIAS FOR custbash or SUPERbash
+
+###########################################
+#     SETUP OF custbash ALIAS             #
+###########################################
+
+## Replace custbash with whatever you want to call your custom bash
+
+##### ── custbash profile loader ────────────────────────────────────
+function custbash() {
+  local candidate=""
+  # 1) Fast path: if BASHRC_HOME is set, use it
+  if [[ -n "$BASHRC_HOME" && -f "$BASHRC_HOME/.bashrc_cust" ]]; then
+    candidate="$BASHRC_HOME/.bashrc_cust"
+  # 2) Otherwise: search exactly 3 levels below ~ for .bashrc_cust
+  else
+    # This matches: ~/level1/level2/level3/.bashrc_cust
+    candidate="$(
+      find "$HOME"/ \
+        -mindepth 3 -maxdepth 3 \
+        -type f -name ".bashrc_cust" \
+        -path "*/cust-bash-shell/*" \
+        -print -quit 2>/dev/null
+    )"
+  fi
+  # 3) Source if found
+  if [[ -n "$candidate" && -f "$candidate" ]]; then
+    # shellcheck disable=SC1090
+    source "$candidate"
+  else
+    echo -e ""
+    echo -e "\e[38;5;220mcustbash not found. Could not locate '.bashrc_cust' under a 'cust-bash-shell' directory exactly 3 levels below ~, nor via \$BASHRC_HOME.\e[0m"
+    echo -e "\e[0;96mChecked:\e[0m"
+    echo -e "  - \$BASHRC_HOME/.bashrc_cust (if set)"
+    echo -e "  - find ~ -mindepth 3 -maxdepth 3 -type f -name '.bashrc_cust' -path '*/cust-bash-shell/*'"
+    echo -e ""
+    echo -e "\e[0;96mTip: set BASHRC_HOME to your repo root, e.g.:\e[0m"
+    echo -e "  export BASHRC_HOME=\"\$HOME/ADAM/cust-bash-shell\""
+    echo -e ""
+  fi
+}
+
+function SUPERbash() { custbash "$@"; }
+
+
