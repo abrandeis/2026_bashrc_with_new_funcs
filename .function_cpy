@@ -10,17 +10,49 @@
 ##### ── Function cpy  ───────────────────────────────────────
 ##  - backs up files using filename.yyyymmdd.bak on any file or directory
 ##  - shortcut to cp -pr for example: cp -pr .file{,.20190505.bak}
-cpy() {
-  if [[ -z $1 ]] ; then
-    echo -e " "
-    echo -e "   ${C_GN} Use to make a .bak file with date on any file or directory ${C_NC}"
-    echo -e "    Usage: cpy MyDirectory "
-    echo -e "      e.g. cpy myfile"
-  elif [[ -f $1 ]] || [[ -d $1 ]] ; then
-    cp -pr $1{,.$(eval date '+%Y%m%d').bak}
-    ls -goaltr --color=always $1 $1*.bak | grep --color=always $1 | tail -2
-  elif [[ ! -f $1 ]] || [[ ! -d $1 ]]; then
-    echo -e "    $C_RD \"$1\" $C_YW file or directory not found! $C_NC"
-  fi
+cpy () {
+    if [[ -z $1 ]]; then
+        echo -e " "
+        echo -e "${C_CY}cpy${C_NC}"
+        echo -e "   ${C_YW}Use to make a .bak file with date on any file or directory${C_NC}"
+        echo -e " "
+        echo -e "    ${C_GN}Usage:${C_NC}"
+        echo -e "    ${C_NC}=========${C_NC}"
+        echo -e "    ${C_CY}cpy${C_NC} MyDirectory"
+        echo -e "    ${C_CY}cpy${C_NC} myfile"
+        return 1
+    fi
+
+    local src="$1"
+
+    if [[ -f "$src" || -d "$src" ]]; then
+        # Build the base backup name with today's date
+        local today
+        today="$(date '+%Y%m%d')"
+        local base_bak="${src}.${today}.bak"
+        local dest="$base_bak"
+
+        # If it exists, add _2, _3, ... until a free name is found
+        if [[ -e "$dest" ]]; then
+            local n=2
+            while :; do
+                dest="${src}.${today}_${n}.bak"
+                [[ ! -e "$dest" ]] && break
+                ((n++))
+            done
+        fi
+
+        # Perform the copy (preserve attrs, recursive if dir)
+        cp -pr -- "$src" "$dest"
+
+        # Show the source and the most recent backups
+        # Using -- to guard against filenames starting with dashes
+        echo
+        ls --color=auto -goaltr --color=always -- "$src" "${src}".*.bak 2>/dev/null | \
+            grep --color=auto --color=always -E "$(printf '%q' "$src")" | tail -3
+    else
+        echo -e "    ${C_RD}\"$src\"${C_YW} file or directory not found!${C_NC}"
+        return 2
+    fi
 }      ##### FUNCTION END : cpy
 
