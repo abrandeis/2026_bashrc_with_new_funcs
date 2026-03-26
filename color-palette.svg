@@ -1,0 +1,88 @@
+<svg viewBox="0 0 780 220" xmlns="http://www.w3.org/2000/svg" font-family="'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace">
+  <defs>
+    <filter id="sh2" x="-5%" y="-5%" width="115%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Window -->
+  <rect x="20" y="20" width="740" height="180" rx="10" ry="10" fill="#0d0f1a" filter="url(#sh2)"/>
+  <rect x="20" y="20" width="740" height="180" rx="10" ry="10" fill="#161825"/>
+
+  <!-- Header bar -->
+  <rect x="20" y="20" width="740" height="36" rx="10" ry="10" fill="#232536"/>
+  <rect x="20" y="42" width="740" height="14" fill="#232536"/>
+  <line x1="20" y1="56" x2="760" y2="56" stroke="#0d0f1a" stroke-width="1"/>
+  <circle cx="46" cy="38" r="6" fill="#ff5f57"/>
+  <circle cx="68" cy="38" r="6" fill="#febc2e"/>
+  <circle cx="90" cy="38" r="6" fill="#28c840"/>
+  <text x="390" y="43" text-anchor="middle" font-size="12" fill="#8888aa">cust-bash-shell — Color System</text>
+
+  <!-- Section label: Script Colors -->
+  <text x="44" y="78" font-size="10" fill="#555577" letter-spacing="0.08em">SCRIPT OUTPUT COLORS  (C_* variables)</text>
+
+  <!-- Swatch row 1 -->
+  <!-- C_NC -->
+  <rect x="44" y="86" width="16" height="16" rx="3" fill="#e8eaf0" stroke="#333355" stroke-width="1"/>
+  <text x="65" y="98" font-size="11" fill="#6b7394">C_NC</text>
+  <text x="65" y="110" font-size="10" fill="#404060">Reset</text>
+
+  <!-- C_RD -->
+  <rect x="140" y="86" width="16" height="16" rx="3" fill="#ff4444"/>
+  <text x="161" y="98" font-size="11" fill="#ff4444">C_RD</text>
+  <text x="161" y="110" font-size="10" fill="#404060">Bold Red</text>
+
+  <!-- C_YW -->
+  <rect x="240" y="86" width="16" height="16" rx="3" fill="#ffd600"/>
+  <text x="261" y="98" font-size="11" fill="#ffd600">C_YW</text>
+  <text x="261" y="110" font-size="10" fill="#404060">Bold Yellow</text>
+
+  <!-- C_CY -->
+  <rect x="350" y="86" width="16" height="16" rx="3" fill="#00e5ff"/>
+  <text x="371" y="98" font-size="11" fill="#00e5ff">C_CY</text>
+  <text x="371" y="110" font-size="10" fill="#404060">Bold Cyan</text>
+
+  <!-- C_GN -->
+  <rect x="450" y="86" width="16" height="16" rx="3" fill="#39ff14"/>
+  <text x="471" y="98" font-size="11" fill="#39ff14">C_GN</text>
+  <text x="471" y="110" font-size="10" fill="#404060">Neon Green</text>
+
+  <!-- LS_COLORS note -->
+  <text x="580" y="92" font-size="10" fill="#555577">LS_COLORS:</text>
+  <rect x="580" y="97" width="16" height="10" rx="2" fill="#1a1a1a"/>
+  <rect x="580" y="97" width="16" height="10" rx="2" fill="#00aa44" opacity="0.6"/>
+  <text x="601" y="106" font-size="10" fill="#555577">other-writable dirs</text>
+  <text x="601" y="116" font-size="10" fill="#404060">green bg (ow=1;0;42)</text>
+
+  <!-- Divider -->
+  <line x1="44" y1="126" x2="736" y2="126" stroke="#1f2535" stroke-width="1"/>
+
+  <!-- Section label: Prompt Colors -->
+  <text x="44" y="143" font-size="10" fill="#555577" letter-spacing="0.08em">PROMPT COLORS  (PSC_* variables — used in PS1)</text>
+
+  <!-- Swatch row 2 -->
+  <rect x="44" y="151" width="16" height="16" rx="3" fill="#00e5ff"/>
+  <text x="65" y="163" font-size="10.5" fill="#00e5ff">Date/Time</text>
+
+  <rect x="152" y="151" width="16" height="16" rx="3" fill="#00c853"/>
+  <text x="173" y="163" font-size="10.5" fill="#00c853">Host (default)</text>
+
+  <rect x="270" y="151" width="16" height="16" rx="3" fill="#ffd600"/>
+  <text x="291" y="163" font-size="10.5" fill="#ffd600">Host (matched) / PWD label</text>
+
+  <rect x="470" y="151" width="16" height="16" rx="3" fill="#d67fff"/>
+  <text x="491" y="163" font-size="10.5" fill="#d67fff">User / keyword highlight</text>
+
+  <rect x="44" y="175" width="16" height="16" rx="3" fill="#39ff14"/>
+  <text x="65" y="187" font-size="10.5" fill="#39ff14">@ symbol / ] / Cursor</text>
+
+  <rect x="200" y="175" width="16" height="16" rx="3" fill="#e8eaf0"/>
+  <text x="221" y="187" font-size="10.5" fill="#e8eaf0">Working Directory (PWD)</text>
+
+  <rect x="420" y="175" width="16" height="16" rx="3" fill="#ff4444"/>
+  <text x="441" y="187" font-size="10.5" fill="#ff4444">Red BG alert (PSC_RDW)</text>
+
+  <rect x="620" y="175" width="16" height="16" rx="3" fill="#9370db"/>
+  <text x="641" y="187" font-size="10.5" fill="#9370db">Purple (PSC_PRP)</text>
+
+</svg>
