@@ -10,7 +10,7 @@
 # ============================================
 
 ##### ── 1)SET CUSTOM BASH HOME ───────────────────────────────────────
-#export BASHRC_HOME="$HOME/ADAM/.adam-cust-bash"
+#export BASHRC_HOME="$HOME/custom-bash-shell"
 
 # Resolve the directory containing the current file
 # Works even when sourced, symlinked, etc.
@@ -122,21 +122,21 @@ export FullHost=$(hostname -f)
 
 ##### ── BUILD FULL HOSTNAME  ───────────────────────────────────────
 # =========================
-# Build the colored display version of FullHost
-# 'report' or 'gate' -> magenta (return to yellow after each match)
+# Build the colored display version of FullHost (for different hostnames if wanted)
+# 'HOST1' or 'HOST2' -> magenta (return to yellow after each match)
 # Otherwise, whole hostname -> green
-if [[ "$FullHost" == *report* || "$FullHost" == *gate* ]]; then
+if [[ "$FullHost" == *HOST1* || "$FullHost" == *HOST2* ]]; then
   # Start yellow for the whole line
   colored_host="${PSC_YW}${FullHost}${PSC_NC}"
 
-  # Highlight 'report' in magenta, then return to yellow
-  colored_host="${colored_host//int/${PSC_MA}int${PSC_YW}}${PSC_NC}"
+  # Highlight 'HOST1' in magenta, then return to yellow
+  colored_host="${colored_host//int/${PSC_MA}HOST2${PSC_YW}}${PSC_NC}"
 
-  # Highlight 'report' in magenta, then return to yellow
-  colored_host="${colored_host//report/${PSC_MA}report${PSC_YW}}${PSC_NC}"
+  # Highlight 'HOST2' in magenta, then return to yellow
+  colored_host="${colored_host//report/${PSC_MA}HOST2${PSC_YW}}${PSC_NC}"
 
-  # Highlight 'gate' in magenta, then return to yellow
-  colored_host="${colored_host//gate/${PSC_MA}gate${PSC_YW}}${PSC_NC}"
+  # Highlight 'HOST3' in magenta, then return to yellow
+  colored_host="${colored_host//gate/${PSC_MA}HOST3${PSC_YW}}${PSC_NC}"
 else
   # Entire hostname green
   colored_host="${PSC_GN}${FullHost}${PSC_NC}"
@@ -146,8 +146,8 @@ fi
 # =========================
 export PS_DT="$PSC_CY2\d \@$PSC_NC"                 ### Date/Time         - Cyan
 export PSDTHOST="$PSC_YW${colored_host}$PSC_NC"     ### Hostname          - Yellow
-#export PSDTHOST="$PSC_YW${FullHost}$PSC_NC"         ### Hostname          - Yellow
-#export PSDTHOST="$PSC_YW\H$PSC_NC"                  ### Hostname          - Yellow
+#export PSDTHOST="$PSC_YW${FullHost}$PSC_NC"        ### Hostname          - Yellow
+#export PSDTHOST="$PSC_YW\H$PSC_NC"                 ### Hostname          - Yellow
 export PSUSR="$PSC_MA\u$PSC_NC"                     ### User              - Magenta
 export PS_AT="$PSC_GN2@$PSC_NC"                     ### @                 - Neon Green
 export PSHOST="$PSC_YW\H:$PSC_NC"                   ### Hostname          - Yellow
@@ -173,19 +173,17 @@ PROMPT_COMMAND='if [[ ! ( $(date +"%T") < "$prodStartTime" || $(date +"%T") > "$
 
 ##### ── For colorized MAN pages ───────────────────────────────────────
 # =========================
-#alias lessr="less -f -F -R -J -P?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]"
-#export LESS='-f -R -S -N -M -F -X'
 
-
+### ADDED FUNCTION FOR "less" with updated optiosn for better use of less 
 lessr() {
   less -f -F -R -J -P'?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]' $1
 }
 
-alias lessr2='less -f -F -R -J -P'\''?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]'\'
-
+## OTHER ATTEMPTS FOR lessr alias 
+#alias lessr="less -f -F -R -J -P?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]"
 #alias lessr='less -f -F -R -J -P'\''?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]'\'
 
-
+#export LESS='-f -F -R -S -N -M -X'  ## SEE man less for options explanations 
 export LESS='-f -F -R -J -P?f%f:.. ?m(lines %lt-%lb/%L.  bytes %bt-%bb/%B)?e(END):.  (%p%%)  ?s%s.  ?t%t:..]'
 export LESSBINFMT="*k<%02X>"             # show ^A [control] characters in different color
 export LESS_TERMCAP_mb=$'\e[01;30m'      # begin blinking                 [grey-black bold]
@@ -225,7 +223,7 @@ complete -o default -o nospace -W "$(
       grep -hE '^Host[[:space:]]+' "$HOME/.ssh/config.d"/* 2>/dev/null | grep -v '[?*]' | cut -d ' ' -f 2-
     fi
   } \
-  | sed -e 's/.mgmt.prd.cust.com//' -e 's/.prd.cust.com//' \
+  | sed -e 's/hosts.prd.cust.com//' -e 's/.prd.cust.com//' \
   | sort -u
 )" host ping rsync scp sftp ssh jump
 
